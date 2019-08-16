@@ -1,0 +1,19 @@
+{
+  "name": "ltfsee-rest-api",
+  "version": "0.0.1",
+  "description": "IBM Spectrum Archive EE REST api",
+  "dependencies": {
+    "body-parser": ">= 1.13.2",
+    "express": ">= 4.13.0",
+    "glob": ">= 5.0.15",
+    "js2xmlparser": ">= 1.0.0",
+    "jsonwebtoken": ">= 5.0.4",
+    "morgan": ">= 1.6.1",
+    "passport": ">= 0.2.2",
+    "passport-ldapauth": ">= 0.3.0",
+    "passport-windowsauth": ">= 0.5.0",
+    "pkgcloud": ">= 1.1.0",
+    "shortid": ">= 2.2.4",
+    "sprintf-js": ">= 1.0.3"
+  }
+}
