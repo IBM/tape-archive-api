@@ -1,19 +1,19 @@
 /* define modules */
-var express = require("express");
-var https = require("https");
-var spawn = require("child_process").spawn
-var glob = require("glob");
-var shortid = require("shortid");
-var fs = require("fs");
-var jwt = require("jsonwebtoken");
-var js2xmlparser = require("js2xmlparser");
-var passport = require("passport");
-var LdapStrategy = require("passport-ldapauth");
-var WindowsStrategy = require("passport-windowsauth");
-var bodyParser = require("body-parser");
-var sprintf = require("sprintf-js").sprintf;
-var morgan = require("morgan");
-var pkgcloud = require("pkgcloud");
+const express = require("express");
+const https = require("https");
+const spawn = require("child_process").spawn
+const glob = require("glob");
+const shortid = require("shortid");
+const fs = require("fs");
+const jwt = require("jsonwebtoken");
+const js2xmlparser = require("js2xmlparser");
+const passport = require("passport");
+const LdapStrategy = require("passport-ldapauth");
+const WindowsStrategy = require("passport-windowsauth");
+const bodyParser = require("body-parser");
+const sprintf = require("sprintf-js").sprintf;
+const morgan = require("morgan");
+const pkgcloud = require("pkgcloud");
 const process = require("process");
 
 /* define global constants */
@@ -23,6 +23,7 @@ var secret = "IBM Spectrum Archive EE";
 var userName = "admin"
 var userPw = "Passw0rd"
 var bytes = 1024*1024*1024;
+var ver = "1.0"
 
 /* assign environment variables or defaults */
 // http port to be used by the API
@@ -277,11 +278,11 @@ app.get("/taskshow/:taskid", function(req, res) {
   Example: curl -X PUT http://localhost/recall -d "filelist"
 *****************************************************************************************/
 app.put("/recall", function(req, res) {
-  var format = req.query.format || "text";
-  var file_list = Object.keys(req.body)[0];
-  var worker;
-  var tmp_file = "/tmp/ee-restapi-reclist."+shortid.generate();
-  var destFile = ""+recallFileSpec+"."+shortid.generate()+"";
+  let format = req.query.format || "text";
+  let file_list = Object.keys(req.body)[0];
+  let worker;
+  let tmp_file = "/tmp/ee-restapi-reclist."+shortid.generate();
+  let destFile = ""+recallFileSpec+"."+shortid.generate()+"";
 
   // console.log("DEBUG: request body sting: "+file_list);
 
@@ -327,7 +328,7 @@ app.put("/recall", function(req, res) {
         if (code === 0 ) {
           if (format === "json") {
            res.type("json");
-           res.send("{Response: {Returncode: 0, Message: Recall finished}}\n");
+           res.send("{\"Response\": {\"Returncode\": \"0\", \"Message\": \"Recall finished.\"}}\n");
           }
           else {
             res.type("text");
@@ -336,13 +337,15 @@ app.put("/recall", function(req, res) {
         }
         else {
           console.log("Error: recall failed with return code "+code+", returning http 500");
-          res.status(500).send("Error: recall failed with return code "+code+"\n");
+          if (format === "json") response.status(500).send("{\"Response\": {\"Returncode\": "+code+", \"Message\": \"recall failed.\"}}\n");
+          else res.status(500).send("Error: recall failed with return code "+code+"\n");
         }
       });
     }
     else {
       console.log("Error: create file list failed with return code "+code+", returning http 500. SSH key may not work.");
-      res.status(500).send("Error: create file list failed with return code "+code+"\n");
+      if (format === "json") response.status(500).send("{\"Response\": {\"Returncode\": "+code+", \"Message\": \"create file list failed.\"}}\n");
+      else res.status(500).send("Error: create file list failed with return code "+code+"\n");
     }
   }); 
   worker.stderr.on("data", function(data) {
@@ -362,19 +365,19 @@ app.put("/recall", function(req, res) {
 *****************************************************************************************/
 app.put("/migrate", function(req, res) {
   // get format from URL modifier ?format=, default is text
-  var format = req.query.format || "text";
+  let format = req.query.format || "text";
   // extract the file names from req.body key field 0
-  var file_list = Object.keys(req.body)[0];
-  var worker;
-  var tmp_file = "/tmp/ee-restapi-miglist."+shortid.generate();
-  var destFile = ""+migrateFileSpec+"."+shortid.generate()+"";
+  let file_list = Object.keys(req.body)[0];
+  let worker;
+  let tmp_file = "/tmp/ee-restapi-miglist."+shortid.generate();
+  let destFile = ""+migrateFileSpec+"."+shortid.generate()+"";
   // get pool name from URL modiers
-  var pool = [];
+  let pool = [];
   pool[0] = req.query.pool || undefined;
   pool[1] = req.query.pool1 || undefined;
   pool[2] = req.query.pool2 || undefined;
   pool[3] = req.query.pool3 || undefined;
-  var pools = "";
+  let pools = "";
 
   // build the pools string
   for (let i=0; i<=3; i++) {
@@ -450,13 +453,15 @@ app.put("/migrate", function(req, res) {
         }
         else {
           console.log("Error: migrate failed with return code "+code+", returning http 500.");
-          res.status(500).send("Error: migrate failed with return code "+code+"\n");
+          if (format === "json") response.status(500).send("{\"Response\": {\"Returncode\": "+code+", \"Message\": \"migrate failed.\"}}\n");
+          else res.status(500).send("Error: migrate failed with return code "+code+"\n");
         }
        });
      }
      else {
        console.log("Error: create file list for migrate failed with return code "+code+",returning http 500");
-       res.status(500).send("Error: create file list for migrate failed with return code "+code+". SSH key may not work.\n");
+       if (format === "json") response.status(500).send("{\"Response\": {\"Returncode\": "+code+", \"Message\": \"create file list for migrate failed.\"}}\n");
+       else res.status(500).send("Error: create file list failed for migrate with return code: "+code+"\n");
      }
      }); 
   worker.stderr.on("data", function(data) {
@@ -468,19 +473,11 @@ app.put("/migrate", function(req, res) {
 /*******************************************************************************
  MAIN Code
 *******************************************************************************/
-/* start https server 
-var server = https.createServer({key: fs.readFileSync("key.pem"),
-				 cert: fs.readFileSync("cert.pem"),
-                 passphrase: "IBM Spectrum Archive EE"}, app).listen(443);
-server.timeout = 3600000;
-*/
-
-/* start http server */
 app.listen(httpPort)
 
 /* print welcome */
-console.log("EE Rest API started on port "+httpPort);
-
+console.log("EE Action API version "+ver+" started on port "+httpPort);
+console.log("DEBUG: useSSH="+useSSH+" sshPort="+sshPort+" sshkeyfile="+sshKey+" sshUser="+sshUser+" sshHost="+sshHost+" recallDir="+recallFileSpec+" migrateDir="+migrateFileSpec+"");
 
 /********************************************************************
   HELPER FUNCTIONS
@@ -539,7 +536,7 @@ function runCommand(command, format, response) {
 			 response.status(500).send("{\"Response\": {\"Returncode\": "+code+", \"Message\": \"command "+command+" failed\"}}\n");
 		  }
 		  else {
-			response.status(500).send("Error: command "+command+"  failed with return code "+code+"\n");
+			response.status(500).send("Error: command "+command+" failed with return code "+code+"\n");
 		  }
 		};
 	  }); 
