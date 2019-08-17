@@ -14,9 +14,6 @@ RUN npm install
 # If you are building your code for production
 # RUN npm ci --only=production
 
-# Bundle app source, will not do this during build
-# COPY . .
-
 # Copy private ssh key
 COPY ./eeapi_id_rsa . 
 
