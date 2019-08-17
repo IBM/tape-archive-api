@@ -17,6 +17,9 @@ RUN npm install
 # Bundle app source, will not do this during build
 # COPY . .
 
+# Copy private ssh key
+COPY ./eeapi_id_rsa . 
+
 # expose http port
 EXPOSE 80
 
