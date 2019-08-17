@@ -151,33 +151,9 @@ app.get("/about", function(req, res) {
 
 *****************************************************************************************/
 app.get("/status", function(req, res) {
-  var format = req.query.format || "text";
-  var output = ""
-  var worker;
+  let format = req.query.format || "text";
 
-  worker = runCommand("/opt/ibm/ltfsee/bin/eeadm node list", format);
-
-  worker.stdout.on("data", function(data) {
-    output += data;
-  });
-  worker.on("exit", function(code) {
-    if (code === 0 ) {
-      if (format === "json") {
-        res.type("json");
-        res.send(output);
-      }
-      else {
-        res.type("text");
-        res.send(output);
-      }
-    }
-    else {
-      res.status(500).send("Error: command eeadm node list failed with return code "+code);
-    };
-  }); 
-  worker.stderr.on("data", function(data) {
-    console.log("stderr: "+data);
-  });
+  runCommand("/opt/ibm/ltfsee/bin/eeadm node list", format, res);
 });
 
 
@@ -189,34 +165,10 @@ app.get("/status", function(req, res) {
   Example: curl -X GET http://localhost/info/<cmd>
 *****************************************************************************************/
 app.get("/info/:cmd(tape|drive|node|pool|library)", function(req, res) {
-  var format = req.query.format || "text";
-  var cmd = req.params.cmd;
-  var output = "";
-  var worker;
+  let format = req.query.format || "text";
+  let cmd = req.params.cmd;
 
-  worker = runCommand("/opt/ibm/ltfsee/bin/eeadm "+cmd+" list", format);
-  
-  worker.stdout.on("data", function(data) {
-    output += data;
-  });
-  worker.on("exit", function(code) {
-    if (code === 0 ) {
-      if (format === "json") {
-        res.type("json");
-        res.send(output);
-      }
-      else {
-        res.type("text");
-        res.send(output);
-      }
-    }
-    else {
-      res.status(500).send("Error: command (eeadm "+cmd+" list) failed with return code "+code+"\n");
-    };
-  }); 
-  worker.stderr.on("data", function(data) {
-    console.log("stderr: "+data);
-  });
+  runCommand("/opt/ibm/ltfsee/bin/eeadm "+cmd+" list", format, res);
 });
 
 
@@ -231,16 +183,19 @@ TODO:
 - tolerate blank in filename
 *****************************************************************************************/
 app.get("/filestate/*", function(req, res) {
-  var format = req.query.format || "text";
-  var output = "";
-  var file = "/"+req.params[0];
-  var worker;
+  let format = req.query.format || "text";
+  let output = "";
+  let file = "/"+req.params[0];
+  let worker;
 
   // run the command with fixed format text because eeadm file state does not support json
-  worker = runCommand("/opt/ibm/ltfsee/bin/eeadm file state "+file, "text", format);
+  worker = runCommand("/opt/ibm/ltfsee/bin/eeadm file state "+file, "text", undefined);
 
   worker.stdout.on("data", function(data) {
     output += data;
+  });
+  worker.stderr.on("data", function(data) {
+    console.log("stderr: "+data);
   });
   worker.on("exit", function(code) {
     if (code === 0 ) {
@@ -254,12 +209,14 @@ app.get("/filestate/*", function(req, res) {
       }
     }
     else {
-      res.status(500).send("Error: command (eeadm file state) with return code "+code+"\n");
-    };
+      if (format === "json") {
+	    res.status(500).send("{\"Response\": {\"Returncode\": "+code+", \"Message\": \"command eeadm file state failed\"}}\n");
+	  }
+	  else {
+	    res.status(500).send("Error: command eeadm file list  failed with return code "+code+"\n");
+	  }
+	};
   }); 
-  worker.stderr.on("data", function(data) {
-    console.log("stderr: "+data);
-  });
 });
 
 /*****************************************************************************************
@@ -271,11 +228,9 @@ app.get("/filestate/*", function(req, res) {
 
 *****************************************************************************************/
 app.get("/tasks/:cmd(active|all)", function(req, res) {
-  var format = req.query.format || "text";
-  var filter = req.query.filter;
-  var cmd = req.params.cmd;
-  var output = "";
-  var worker;
+  let format = req.query.format || "text";
+  let filter = req.query.filter;
+  let cmd = req.params.cmd;
   var opt = "";
 
   if (cmd === "all") {
@@ -283,35 +238,11 @@ app.get("/tasks/:cmd(active|all)", function(req, res) {
   }
   
   if (filter) {
-     worker = runCommand("/opt/ibm/ltfsee/bin/eeadm task list "+opt+" | grep "+filter, format);
-/*      worker = spawn("/bin/sh",["-c", "/opt/ibm/ltfsee/bin/ltfsee info "+cmd+" | grep "+filter]); */
+     runCommand("/opt/ibm/ltfsee/bin/eeadm task list "+opt+" | grep "+filter, format, res);
   }
   else {
-     worker = runCommand("/opt/ibm/ltfsee/bin/eeadm task list "+opt, format);
-/*      worker = spawn("/bin/sh",["-c", "/opt/ibm/ltfsee/bin/ltfsee info "+cmd]); */
+     runCommand("/opt/ibm/ltfsee/bin/eeadm task list "+opt, format, res);
   }
-
-  worker.stdout.on("data", function(data) {
-    output += data;
-  });
-  worker.on("exit", function(code) {
-    if (code === 0 ) {
-      if (format === "json") {
-        res.type("json");
-        res.send(output);
-      }
-      else {
-        res.type("text");
-        res.send(output);
-      }
-    }
-    else {
-      res.status(500).send("Error: command (eeadm task list) failed with return code "+code+"\n");
-    };
-  }); 
-  worker.stderr.on("data", function(data) {
-    console.log("stderr: "+data);
-  });
 });
 
 /*****************************************************************************************
@@ -322,36 +253,11 @@ app.get("/tasks/:cmd(active|all)", function(req, res) {
   Example: curl -X GET http://localhost/taskshow/:task-id
 *****************************************************************************************/
 app.get("/taskshow/:taskid", function(req, res) {
-  var format = req.query.format || "text";
-  var taskid = req.params.taskid;
-  var output = "";
-  var worker;
-  var opt = "";
+  let format = req.query.format || "text";
+  let taskid = req.params.taskid;
 
   if (!isNaN(taskid)) {
-    worker = runCommand("/opt/ibm/ltfsee/bin/eeadm task show "+taskid, format);
-    worker.stdout.on("data", function(data) {
-      output += data;
-    });
-    worker.on("exit", function(code) {
-      if (code === 0 ) {
-        if (format === "json") {
-          res.type("json");
-          res.send(output);
-        }
-        else {
-          res.type("text");
-         res.send(output);
-        }
-      }
-      else {
-        console.log("Error: command (eeadm task show) failed with return code "+code+", return http 500.");
-        res.status(500).send("Error: command (eeadm task show) failed with return code "+code+"\n");
-      };
-    });
-    worker.stderr.on("data", function(data) {
-      console.log("stderr: "+data);
-    });
+    runCommand("/opt/ibm/ltfsee/bin/eeadm task show "+taskid, format, res);
   }
   else {
 /*  return error */
@@ -412,7 +318,7 @@ app.put("/recall", function(req, res) {
       });
 
       // run the eeadm command
-      worker = runCommand("/opt/ibm/ltfsee/bin/eeadm recall "+destFile, format);
+      worker = runCommand("/opt/ibm/ltfsee/bin/eeadm recall "+destFile, format, undefined);
       // capture stdout and check exit code
       worker.stdout.on("data", function(data) {
         console.log("DEBUG: runCommand output: "+data);
@@ -435,7 +341,7 @@ app.put("/recall", function(req, res) {
       });
     }
     else {
-      console.log("Error: create file list failed with return code "+code+", returning http 500");
+      console.log("Error: create file list failed with return code "+code+", returning http 500. SSH key may not work.");
       res.status(500).send("Error: create file list failed with return code "+code+"\n");
     }
   }); 
@@ -526,7 +432,7 @@ app.put("/migrate", function(req, res) {
       });
 
       // run eeadm command
-      worker = runCommand("/opt/ibm/ltfsee/bin/eeadm migrate "+destFile+" -p "+pools+"", format);
+      worker = runCommand("/opt/ibm/ltfsee/bin/eeadm migrate "+destFile+" -p "+pools+"", format, undefined);
       // capture stdout and exit codes
       worker.stdout.on("data", function(data) {
         console.log("DEBUG: runCommand output: "+data);
@@ -543,14 +449,14 @@ app.put("/migrate", function(req, res) {
           }
         }
         else {
-          console.log("Error: migrate failed with return code "+code+", returning http 500");
+          console.log("Error: migrate failed with return code "+code+", returning http 500.");
           res.status(500).send("Error: migrate failed with return code "+code+"\n");
         }
        });
      }
      else {
        console.log("Error: create file list for migrate failed with return code "+code+",returning http 500");
-       res.status(500).send("Error: create file list for migrate failed with return code "+code+"\n");
+       res.status(500).send("Error: create file list for migrate failed with return code "+code+". SSH key may not work.\n");
      }
      }); 
   worker.stderr.on("data", function(data) {
@@ -588,18 +494,18 @@ console.log("EE Rest API started on port "+httpPort);
    Return: 
      output: command output as spawn object
 *********************************************************************/
-function runCommand(command, format) {
-  var cmdPrefix = "";
-  var cmdPostfix = "";
-  var proc;
-  var out = "";
+function runCommand(command, format, response) {
+  let cmdPrefix = "";
+  let cmdPostfix = "";
+  let proc;
+  let output = "";
 
   if (format === "json") {
     cmdPostfix = " --json"
   }
 
   if (useSSH) {
-    cmdPrefix = "/usr/bin/ssh -i "+sshKey+" "+sshUser+"@"+sshHost+" ";
+    cmdPrefix = "/usr/bin/ssh -o BatchMode=yes -i "+sshKey+" "+sshUser+"@"+sshHost+" ";
     console.log("DEBUG: running command: "+cmdPrefix+""+command+""+cmdPostfix+"");
     proc = spawn("/bin/sh",["-c", cmdPrefix+command+cmdPostfix]);
   }
@@ -608,6 +514,36 @@ function runCommand(command, format) {
     proc = spawn("/bin/sh",["-c", command+cmdPostfix]);
   };
 
+  // this is common code for some enpoints, but not for all
+  if (response) {
+	  proc.stdout.on("data", function(data) {
+		output += data;
+	  });
+	  proc.stderr.on("data", function(data) {
+		console.log("stderr: "+data);
+	  });
+	  proc.on("exit", function(code) {
+		if (format == "json") { 
+		  response.type("json");
+		}
+		else {
+		  response.type("text");
+		}
+
+		if (code === 0 ) {
+		  response.send(output);
+		}
+		else {
+          console.log("Error: command "+command+"  failed with return code "+code+"");
+		  if (format === "json") {
+			 response.status(500).send("{\"Response\": {\"Returncode\": "+code+", \"Message\": \"command "+command+" failed\"}}\n");
+		  }
+		  else {
+			response.status(500).send("Error: command "+command+"  failed with return code "+code+"\n");
+		  }
+		};
+	  }); 
+  }
   return(proc);
 }
 
@@ -623,7 +559,7 @@ function runCopy(sourceFile, destFile) {
   var proc = "";
 
   if (useSSH) {
-    copyCmd = "/usr/bin/scp -i "+sshKey+" "+sourceFile+" "+sshUser+"@"+sshHost+":"+destFile+"";
+    copyCmd = "/usr/bin/scp -o BatchMode=yes -i "+sshKey+" "+sourceFile+" "+sshUser+"@"+sshHost+":"+destFile+"";
     console.log("DEBUG: running command: "+copyCmd+"");
     proc = spawn("/bin/sh",["-c", copyCmd]);
   }
