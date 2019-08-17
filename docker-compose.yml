@@ -1,0 +1,22 @@
+version: '3'
+
+services:
+  app:
+    image: eeapi
+    #build: .
+    container_name: eeapi
+    ports:
+      - "8080:80"
+    volumes:
+      - ./server.js:/usr/src/app/server.js
+    restart: always
+    environment:
+      - EEAPI_PORT=80
+      - EEAPI_USESSH=true
+      - EEAPI_SSHPORT=22
+      - EEAPI_SSHUSER=root
+      - EEAPI_SSHHOST=9.155.113.40
+      - EEAPI_RECALLFILE=/tmp/recall-list
+      - EEAPI_MIGRATEFILE=/tmp/migrate-list
+      - EEAPI_KEYFILE=/usr/src/app/eeapi_id_rsa
+
