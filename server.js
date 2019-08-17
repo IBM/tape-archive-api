@@ -36,9 +36,11 @@ var sshUser = process.env.EEAPI_SSHUSER || "root";
 // ssh and scp host address or name
 var sshHost = process.env.EEAPI_SSHHOST || "localhost";
 // directory and file name prefix for recall filelists on EE node 
-var recallFileSpec = process.env.EEAPI_RECALLFILE || "/tmp/recall-list"
+var recallFileSpec = process.env.EEAPI_RECALLFILE || "/tmp/recall-list";
 // directory and file name prefix for migrate filelists on EE node
-var migrateFileSpec = process.env.EEAPI_MIGRATEFILE || "/tmp/migrate-list"
+var migrateFileSpec = process.env.EEAPI_MIGRATEFILE || "/tmp/migrate-list";
+// name of the key file used for ssh
+var sshKey = process.env.EEAPI_KEYFILE || "/root/.ssh/id_rsa";
 
 
 /* instantiate express object */
@@ -597,7 +599,7 @@ function runCommand(command, format) {
   }
 
   if (useSSH) {
-    cmdPrefix = "/usr/bin/ssh "+sshUser+"@"+sshHost+" ";
+    cmdPrefix = "/usr/bin/ssh -i "+sshKey+" "+sshUser+"@"+sshHost+" ";
     console.log("DEBUG: running command: "+cmdPrefix+""+command+""+cmdPostfix+"");
     proc = spawn("/bin/sh",["-c", cmdPrefix+command+cmdPostfix]);
   }
@@ -621,7 +623,7 @@ function runCopy(sourceFile, destFile) {
   var proc = "";
 
   if (useSSH) {
-    copyCmd = "/usr/bin/scp "+sourceFile+" "+sshUser+"@"+sshHost+":"+destFile+"";
+    copyCmd = "/usr/bin/scp -i "+sshKey+" "+sourceFile+" "+sshUser+"@"+sshHost+":"+destFile+"";
     console.log("DEBUG: running command: "+copyCmd+"");
     proc = spawn("/bin/sh",["-c", copyCmd]);
   }
