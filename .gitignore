@@ -1,2 +1,3 @@
-# ignore the private key
-eeapi_id_rsa
+# ignore the key
+eeapi_id_rsa*
+.gitignore
