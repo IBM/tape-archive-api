@@ -67,16 +67,17 @@ The Tape archive API is based on Node JavaScript (Node JS) and can be deployed d
 
 For defining the deployment and communication parameters the following environmental variables are available:
 
-    | Environmental variable | Description |
-	| -----------------------|-------------|
-	| EAPI_PORT | specifies the port for the communication with the API, default port is 80. |
-	| EEAPI_USESSH | specifies whether to use SSH to connect to the Spectrum Archive server remotely or not. When running on a Spectrum Archive server this should be set to false. Default is true. |
-	| EEAPI_SSHPORT | specifies the SSH port to be used for SSH and SCP communication. Must be specified if EEAPI_USESSH is set to true. Default is 22.  |
-	| EEAPI_SSHUSER | specifies the SSH / SCP user name. Default ist root. Must be specified if EEAPI_USESSH is set to true. Please notice that currently Spectrum Archive EE is not aware of non-root users. |
-	| EEAPI_SSHHOST | specifies host name or IP address of the the Spectrum Archive server. Must be specified if | EEAPI_USESSH is set to true. Default is localhost. |
-	| EEAPI_KEYFILE |specifies the name of the SSH key file to be used for the communication with the Spectrum Archive server. Must be specified if EEAPI_USESSH is set to true. Default is localhost. |
-	| EEAPI_RECALLFILE | specifies the directory and file name prefix on the Spectrum Archive server where the recall file lists are stored. The recall list includes fully qualified path and file name to be recalled. The subsequent command: eeadm recall <file list> will recall the files within this list. The default path and file name prefix is /tmp/recall-list. |
-	| EEAPI_MIGRATEFILE | specifies the directory and file name prefix on the Spectrum Archive server where the migrate file lists are stored. The migrate list includes fully qualified path and file name to be migrated. The subsequent command: eeadm migrate <file list> -p poolQlib will migrate the files within this list. The default path and file name prefix is /tmp/recall-list.  |
+
+| Environmental variable | Description |
+| -----------------------|-------------|
+| EAPI_PORT | specifies the port for the communication with the API, default port is 80. |
+| EEAPI_USESSH | specifies whether to use SSH to connect to the Spectrum Archive server remotely or not. When running on a Spectrum Archive server this should be set to false. Default is true. |
+| EEAPI_SSHPORT | specifies the SSH port to be used for SSH and SCP communication. Must be specified if EEAPI_USESSH is set to true. Default is 22.  |
+| EEAPI_SSHUSER | specifies the SSH / SCP user name. Default ist root. Must be specified if EEAPI_USESSH is set to true. Please notice that currently Spectrum Archive EE is not aware of non-root users. |
+| EEAPI_SSHHOST | specifies host name or IP address of the the Spectrum Archive server. Must be specified if EEAPI_USESSH is set to true. Default is localhost. |
+| EEAPI_KEYFILE |specifies the name of the SSH key file to be used for the communication with the Spectrum Archive server. Must be specified if EEAPI_USESSH is set to true. Default is localhost. |
+| EEAPI_RECALLFILE | specifies the directory and file name prefix on the Spectrum Archive server where the recall file lists are stored. The recall list includes fully qualified path and file name to be recalled. The subsequent command: eeadm recall <file list> will recall the files within this list. The default path and file name prefix is /tmp/recall-list. |
+| EEAPI_MIGRATEFILE | specifies the directory and file name prefix on the Spectrum Archive server where the migrate file lists are stored. The migrate list includes fully qualified path and file name to be migrated. The subsequent command: eeadm migrate <file list> -p poolQlib will migrate the files within this list. The default path and file name prefix is /tmp/recall-list.  |
 
 
 ### Deployment on Spectrum Archive server 
