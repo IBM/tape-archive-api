@@ -111,8 +111,8 @@ const migrateFileSpec = process.env.EEAPI_MIGRATEFILE || "/tmp/migrate-list";
 // define version
 const ver = "0.91"
 // common ssh and scp option
-const sshOpts ="-p "+sshPort+" -o BatchMode=yes -i "+sshKey+" "+sshUser+"@"+sshHost+""
-const scpOpts ="-P "+sshPort+" -o BatchMode=yes -i "+sshKey+""
+const sshOpts ="-p "+sshPort+" -o BatchMode=yes -o StrictHostKeyChecking=no -i "+sshKey+" "+sshUser+"@"+sshHost+""
+const scpOpts ="-P "+sshPort+" -o BatchMode=yes -o StrictHostKeyChecking=no -i "+sshKey+""
 // define bytes
 var bytes = 1024*1024*1024;
 
