@@ -91,7 +91,7 @@ Check the about page: `curl -X GET http://<EE server IP>:<EEAPI_PORT>/about`
 ### Deployment on remote server
 To deploy the Tape API on a remote server running node copy server.js and package.json to the remote server into a directory, or clone the git into this directory. Run `npm install` to install the required node modules. Now set the environmental variables according configuration, see section Deployment. 
 
-** Note ** You have to provide a ssh key allowing the remote server to perform passwordless ssh with the Spectrum Archive EE node. The public part of the ssh key file must be referenced by the environment variable `EEAPI_SSHKEY`.
+**Note** You have to provide a ssh key allowing the remote server to perform passwordless ssh with the Spectrum Archive EE node. The public part of the ssh key file must be referenced by the environment variable `EEAPI_SSHKEY`.
 
 Once the environment is set start the API: `node ./server.js`
 
@@ -102,7 +102,7 @@ The Tape API can also be deployed in a Docker container. This git includes a Doc
 
 Clone the git.
 
-** Note ** You have to provide a ssh key allowing the remote server to perform passwordless ssh with the Spectrum Archive EE node. The public part of the ssh key file must be referenced by the environment variable `EEAPI_SSHKEY` and within the dockerfile. 
+> You have to provide a ssh key allowing the remote server to perform passwordless ssh with the Spectrum Archive EE node. The public part of the ssh key file must be referenced by the environment variable `EEAPI_SSHKEY` and within the dockerfile. 
 
 Adjust the Dockerfile with the ssh key file path (public key) at:
 ```
