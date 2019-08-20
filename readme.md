@@ -1,5 +1,6 @@
 # Tape archive API
 
+
 ## Introduction
 The Tape archive API facilitates controlling migration and recalls of files managed by IBM Spectrum Archive Enterprise Edition. It also allows to obtain component status for IBM Spectrum Archive system. The Tape archive API is a REST API that provides http calls to manage files and obtain status information.
 
@@ -65,12 +66,13 @@ All status and output information can be obtained in text format (default) or in
 ## Deployment
 The Tape archive API is based on Node JavaScript (Node JS) and can be deployed directly on a Spectrum Archive server or on a remote system that uses password-less SSH to communicate with the Spectrum Archive server. The API has been tested with node version 10. 
 
-For defining the deployment and communication parameters the following environmental variables are available:
 
+### Environmental variables
+For defining the deployment and communication parameters the following environmental variables are available:
 
 | Environmental variable | Description |
 | -----------------------|-------------|
-| EAPI_PORT | specifies the port for the communication with the API, default port is 80. |
+| EEAPI_PORT | specifies the port for the communication with the API, default port is 80. |
 | EEAPI_USESSH | specifies whether to use SSH to connect to the Spectrum Archive server remotely or not. When running on a Spectrum Archive server this should be set to false. Default is true. |
 | EEAPI_SSHPORT | specifies the SSH port to be used for SSH and SCP communication. Must be specified if EEAPI_USESSH is set to true. Default is 22.  |
 | EEAPI_SSHUSER | specifies the SSH / SCP user name. Default ist root. Must be specified if EEAPI_USESSH is set to true. Please notice that currently Spectrum Archive EE is not aware of non-root users. |
@@ -85,16 +87,25 @@ To deploy the Tape Archive API on a Spectrum Archive node, node version 10 or hi
 
 Check the about page: `curl -X GET http://<EE server IP>:<EEAPI_PORT>/about`
 
+
 ### Deployment on remote server
-To deploy the Tape API on a remote server running node copy server.js and package.json to the remote server into a directory, or clone the git into this directory. Run `npm install` to install the required node modules. Now set the environmental variables according configuration, see section Deployment. Once the environment is set start the API: `node ./server.js`
+To deploy the Tape API on a remote server running node copy server.js and package.json to the remote server into a directory, or clone the git into this directory. Run `npm install` to install the required node modules. Now set the environmental variables according configuration, see section Deployment. 
+
+Once the environment is set start the API: `node ./server.js`
 
 Start with testing the connection using this URL: `curl -X GET http://<EE server IP>:<EEAPI_PORT>/test`
+
 
 The Tape API can also be deployed in a Docker container. This git includes a Dockerfile to build the image and a docker-compose file to run the image in a container. 
 
 Clone the git and run: `docker built -t eeapi .`
+
 Adjust the environment variable in the docker-compose file.
+
 Start the container: `docker-compose up [-d]` Starting the container with `-d` gives you the console which is useful for debugging. 
 
 Now you can test the connection: `curl -X GET http://<EE server IP>:<EEAPI_PORT>/test`
 And run other API commands.
+
+
+Have fun and thanks to Khanh V Ngo for providing the baseline API :+1: 
