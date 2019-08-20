@@ -70,7 +70,7 @@ For defining the deployment and communication parameters the following environme
     | Environmental variable | Description |
 	| -----------------------|-------------|
 	| EAPI_PORT | specifies the port for the communication with the API, default port is 80. |
-	| EEAPI_USESSH| specifies whether to use SSH to connect to the Spectrum Archive server remotely or not. When running on a Spectrum Archive server this should be set to false. Default is true. |
+	| EEAPI_USESSH | specifies whether to use SSH to connect to the Spectrum Archive server remotely or not. When running on a Spectrum Archive server this should be set to false. Default is true. |
 	| EEAPI_SSHPORT | specifies the SSH port to be used for SSH and SCP communication. Must be specified if EEAPI_USESSH is set to true. Default is 22.  |
 	| EEAPI_SSHUSER | specifies the SSH / SCP user name. Default ist root. Must be specified if EEAPI_USESSH is set to true. Please notice that currently Spectrum Archive EE is not aware of non-root users. |
 	| EEAPI_SSHHOST | specifies host name or IP address of the the Spectrum Archive server. Must be specified if | EEAPI_USESSH is set to true. Default is localhost. |
