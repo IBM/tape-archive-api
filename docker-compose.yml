@@ -15,7 +15,7 @@ services:
       - EEAPI_USESSH=true
       - EEAPI_SSHPORT=22
       - EEAPI_SSHUSER=root
-      - EEAPI_SSHHOST=9.155.113.40
+      - EEAPI_SSHHOST="<EE-node-IP>"
       - EEAPI_RECALLFILE=/tmp/recall-list
       - EEAPI_MIGRATEFILE=/tmp/migrate-list
       - EEAPI_KEYFILE=/usr/src/app/eeapi_id_rsa
