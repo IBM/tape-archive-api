@@ -1,4 +1,7 @@
 # Tape archive API
+Using tapes in tiered storage file system that are space managed bears some risk. Especially if users can access the file system and cause transparent recalls. Transparent recalls tend to be slow and sometimes they impact file system operations. Therefore it is recommended to disallow transparent recalls for users and instead use customized retrieval processes that perform tape optimized recalls instead. 
+
+The Tape archive API provides functions to migrate and recall files in a tape optimized manner, in combination with IBM Spectrum Archive Enterprise Edition. With tape optimized operations multiple files are sorted by their tape ID and position on tape and are copied all together. This significantly lowers number of tape mounts, optimized tape motion and reduces the time required to complete the operation. 
 
 
 ## Introduction
@@ -7,60 +10,62 @@ The Tape archive API facilitates controlling migration and recalls of files mana
 
 ### Tape Archive API calls
 The following calls are provided to check the setup and the API:
-- GET test: checks if ssh and scp works and if the Spectrum Archive EE admin tool `eeadm` exists.
+
+	- GET test: checks if ssh and scp works and if the Spectrum Archive EE admin tool `eeadm` exists.
 
 	`curl -X GET http://host:port/test`
 
-- GET about: shows all available routes (endpoints) provided by the API:
+	- GET about: shows all available routes (endpoints) provided by the API:
 
 	`curl -X GET http://host:port/about`
 
 The following calls are provided by the Tape archive API to obtain IBm Spectrum Archive component information, In the examples below simple curl commands are presented:
-- GET node status: obtains node status information using the Spectrum Archive command: eeadm node list
+- GET node status: obtains node status information using the Spectrum Archive command: `eeadm node list`
 
 	`curl -X GET http://host:port/info/node`
 
-- GET tape status: obtains tape status information using the Spectrum Archive command: eeadm tape list
+- GET tape status: obtains tape status information using the Spectrum Archive command: `eeadm tape list`
 
 	`curl -X GET http://host:port/info/tape`
 
-- GET drive status: obtains drive status information using the Spectrum Archive command: eeadm drive list
+- GET drive status: obtains drive status information using the Spectrum Archive command: `eeadm drive list`
 
 	`curl -X GET http://host:port/info/drive`
 
-- GET pool status: obtains tape status information using the Spectrum Archive command: eeadm pool list
+- GET pool status: obtains tape status information using the Spectrum Archive command: `eeadm pool list`
 
 	`curl -X GET http://host:port/info/pool`
 
-- GET library status: obtains tape status information using the Spectrum Archive command: eeadm library list
+- GET library status: obtains tape status information using the Spectrum Archive command: `eeadm library list`
 
 	`curl -X GET http://host:port/info/library`
 
 Furthermore the API allows to inquire information about Spectrum Archive tasks. The following calls are provided:
-- GET tasks status: obtains information about running or completed tasks. The token "type" can be set to active or all. It runs the Spectrum Archive command: eeamd task list [-c]
+
+- GET tasks status: obtains information about running or completed tasks. The token "type" can be set to active or all. It runs the Spectrum Archive command: `eeamd task list [-c]`
 
 	`curl -X GET http://host:port/tasks/<type>`
 
-- GET task details: obtains information about a particular task ID. The token "task-ID" specifies the task ID to be inquired. It must be an integer number. It runs the command: eeadm task show <task-id>
+- GET task details: obtains information about a particular task ID. The token "task-ID" specifies the task ID to be inquired. It must be an integer number. It runs the command: `eeadm task show <task-id>`
 
 	`curl -X GET http://host:port/taskshow/<task-id>`
 
 
 For controlling file operations the following API call are availeble
-- GET file state: ontain information about the file status that can be: resident, migrated or pre-migrated. The file name or a single file name pattern is specified by the token "path-and-filename". This must be a fully qualified path and file name of the file within the space managed file system. 
+- GET file state: ontain information about the file status that can be: resident, migrated or pre-migrated. The file name or a single file name pattern is specified by the token "path-and-filename". This must be a fully qualified path and file name of the file within the space managed file system. It runs the command: `eeadm file state <filename>`
 
 	`curl -X GET http://host:port/filestate/<path-and-filename>`
 
-- PUT file list for migration: migrates a list of files provided with the body of the http request. The file list to be migrated must be provided as body of the request with one path and file name per line. The path and file names must be given relative to the space managed file system: 
-
-	`curl -X PUT http://host:port/recall -d "<filelist>"`
-
-- PUT file list for recall: recalls a list of files provided with the body of the http request. The file list to be recalled must be provided as body of the request with one path and file name per line. The path and file name must be given relative to the space managed file system. The destination pool for migration is provide using one or more of the modifiers "pool", "pool1", "pool2" and "pool3". A maximum number of pools that can be specified is 3. The use of the modifier "pool" is made for convenience if only one pool is used: 
+- PUT file list for migration: migrates a list of files provided with the body of the http request. The file list to be migrated must be provided as body of the request with one path and file name per line. The path and file names must be given relative to the space managed file system. The pool names are given as URL modifiers in the format `?pool1=poolname@library&pool2=poolname@library&pool3=poolname@library`. At least one pool must be specified, up to three pools are allowed. The migration operation is run synchronous with the command: `eeadm migrate <filelist> -p <pools>` 
 
 	`curl -X PUT http://host:port/migrate?pool1=pool1@lib1&pool2@lib2 -d "<filelist>"`
 
+- PUT file list for recall: recalls a list of files provided with the body of the http request. The file list to be recalled must be provided as body of the request with one path and file name per line. The path and file name must be given relative to the space managed file system. The recall operation runs synchronous with the command: `eeadm recall <filelist>`
 
-All status and output information can be obtained in text format (default) or in JSON format. To obtain status information in JSON format use the modifier "?format=json" with the http request. 
+	`curl -X PUT http://host:port/recall -d "<filelist>"`
+
+
+> All status and output information can be obtained in text format (default) or in JSON format. To obtain status information in JSON format use the modifier "?format=json" with the http request. 
 
 
 ## Deployment
@@ -93,9 +98,11 @@ To deploy the Tape API on a remote server running node copy server.js and packag
 
 > You have to provide a ssh key allowing the remote server to perform passwordless ssh with the Spectrum Archive EE node. The public part of the ssh key file must be referenced by the environment variable `EEAPI_SSHKEY`.
 
-Once the environment is set start the API: `node ./server.js`
+Once the environment is set start the API: 
+`node ./server.js`
 
-Start with testing the connection using this URL: `curl -X GET http://<EE server IP>:<EEAPI_PORT>/test`
+Start with testing the connection using this URL: 
+`curl -X GET http://<EE server IP>:<EEAPI_PORT>/test`
 
 
 The Tape API can also be deployed in a Docker container. This git includes a Dockerfile to build the image and a docker-compose file to run the image in a container. 
@@ -109,16 +116,30 @@ Adjust the Dockerfile with the ssh key file path (public key) at:
 # Copy private ssh key
 COPY <your key file> . 
 ```
+Build the container using the Dockerfile: 
+`docker built -t eeapi .`
 
-Build the container using the Dockerfile: `docker built -t eeapi .`
+Adjust the environment variable in the docker-compose file. See section Environment variables for more details. 
 
-Adjust the environment variable in the docker-compose file.
+Start the container. Starting the container with `-d` gives you the console which is useful for debugging.
+`docker-compose up [-d]`  
 
-Start the container: `docker-compose up [-d]` Starting the container with `-d` gives you the console which is useful for debugging. 
-
-Now you can test the connection: `curl -X GET http://<EE server IP>:<EEAPI_PORT>/test`
+Now you can test the connection: 
+`curl -X GET http://<EE server IP>:<EEAPI_PORT>/test`
 
 And run other API commands.
 
 
 Have fun and thanks to Khanh V Ngo for providing the baseline API :+1: 
+
+
+## Considerations and limitations
+The Tape Archive API is a prototype and has not been tested in production and in multi-user environments. The author does not assume any liability for damages or other trouble when deploying this API. Contact the author if you need help implementing it in your environment. 
+
+Consider the following limitations:
+- The API uses synchronous recall and migrate calls. These can take longer times causing HTTP timeouts. 
+- Migrate and recall request are immediatelly executed, this can lead to many simulataneous tape operations in the backend. 
+- The API does not use any user authentication for incoming requests. 
+- The API does not check if users requesting a migrate or recall are authorized to access the files to be processed. 
+
+These limitations can be addressed, contact the author if you need help with this. 
