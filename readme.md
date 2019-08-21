@@ -11,56 +11,59 @@ The Tape archive API facilitates controlling migration and recalls of files mana
 ### Tape Archive API calls
 The following calls are provided to check the setup and the API:
 
-	- GET test: checks if ssh and scp works and if the Spectrum Archive EE admin tool `eeadm` exists.
+- GET test: checks if ssh and scp works and if the Spectrum Archive EE admin tool `eeadm` exists.
 
 	`curl -X GET http://host:port/test`
 
-	- GET about: shows all available routes (endpoints) provided by the API:
+- GET about: shows all available routes (endpoints) provided by the API:
 
 	`curl -X GET http://host:port/about`
 
+
 The following calls are provided by the Tape archive API to obtain IBm Spectrum Archive component information, In the examples below simple curl commands are presented:
-- GET node status: obtains node status information using the Spectrum Archive command: `eeadm node list`
+
+- GET node status: obtains node status information from Spectrum Archive EE:
 
 	`curl -X GET http://host:port/info/node`
 
-- GET tape status: obtains tape status information using the Spectrum Archive command: `eeadm tape list`
+- GET tape status: obtains tape status information from Spectrum Archive EE:
 
 	`curl -X GET http://host:port/info/tape`
 
-- GET drive status: obtains drive status information using the Spectrum Archive command: `eeadm drive list`
+- GET drive status: obtains drive status information from Spectrum Archive EE:
 
 	`curl -X GET http://host:port/info/drive`
 
-- GET pool status: obtains tape status information using the Spectrum Archive command: `eeadm pool list`
+- GET pool status: obtains tape status information from Spectrum Archive EE:
 
 	`curl -X GET http://host:port/info/pool`
 
-- GET library status: obtains tape status information using the Spectrum Archive command: `eeadm library list`
+- GET library status: obtains tape status information from Spectrum Archive EE:
 
 	`curl -X GET http://host:port/info/library`
 
+
 Furthermore the API allows to inquire information about Spectrum Archive tasks. The following calls are provided:
 
-- GET tasks status: obtains information about running or completed tasks. The token "type" can be set to active or all. It runs the Spectrum Archive command: `eeamd task list [-c]`
+- GET tasks status: obtains information about running or completed tasks. The token "type" can be set to active or all. 
 
 	`curl -X GET http://host:port/tasks/<type>`
 
-- GET task details: obtains information about a particular task ID. The token "task-ID" specifies the task ID to be inquired. It must be an integer number. It runs the command: `eeadm task show <task-id>`
+- GET task details: obtains information about a particular task ID. The token "task-ID" specifies the task ID to be inquired. It must be an integer number. 
 
 	`curl -X GET http://host:port/taskshow/<task-id>`
 
 
 For controlling file operations the following API call are availeble
-- GET file state: ontain information about the file status that can be: resident, migrated or pre-migrated. The file name or a single file name pattern is specified by the token "path-and-filename". This must be a fully qualified path and file name of the file within the space managed file system. It runs the command: `eeadm file state <filename>`
+- GET file state: ontain information about the file status that can be: resident, migrated or pre-migrated. The file name or a single file name pattern is specified by the token "path-and-filename". This must be a fully qualified path and file name of the file within the space managed file system. 
 
 	`curl -X GET http://host:port/filestate/<path-and-filename>`
 
-- PUT file list for migration: migrates a list of files provided with the body of the http request. The file list to be migrated must be provided as body of the request with one path and file name per line. The path and file names must be given relative to the space managed file system. The pool names are given as URL modifiers in the format `?pool1=poolname@library&pool2=poolname@library&pool3=poolname@library`. At least one pool must be specified, up to three pools are allowed. The migration operation is run synchronous with the command: `eeadm migrate <filelist> -p <pools>` 
+- PUT file list for migration: migrates a list of files provided with the body of the http request. The file list to be migrated must be provided as body of the request with one path and file name per line. The path and file names must be given relative to the space managed file system. The pool names are given as URL modifiers in the format `?pool1=poolname@library&pool2=poolname@library&pool3=poolname@library`. At least one pool must be specified, up to three pools are allowed. The migration operation is run synchronous. 
 
 	`curl -X PUT http://host:port/migrate?pool1=pool1@lib1&pool2@lib2 -d "<filelist>"`
 
-- PUT file list for recall: recalls a list of files provided with the body of the http request. The file list to be recalled must be provided as body of the request with one path and file name per line. The path and file name must be given relative to the space managed file system. The recall operation runs synchronous with the command: `eeadm recall <filelist>`
+- PUT file list for recall: recalls a list of files provided with the body of the http request. The file list to be recalled must be provided as body of the request with one path and file name per line. The path and file name must be given relative to the space managed file system. The recall operation runs synchronous.
 
 	`curl -X PUT http://host:port/recall -d "<filelist>"`
 
@@ -78,30 +81,43 @@ For defining the deployment and communication parameters the following environme
 | Environmental variable | Description |
 | -----------------------|-------------|
 | EEAPI_PORT | specifies the port for the communication with the API, default port is 80. |
-| EEAPI_USESSH | specifies whether to use SSH to connect to the Spectrum Archive server remotely or not. When running on a Spectrum Archive server this should be set to false. Default is true. |
-| EEAPI_SSHPORT | specifies the SSH port to be used for SSH and SCP communication. Must be specified if EEAPI_USESSH is set to true. Default is 22.  |
-| EEAPI_SSHUSER | specifies the SSH / SCP user name. Default ist root. Must be specified if EEAPI_USESSH is set to true. Please notice that currently Spectrum Archive EE is not aware of non-root users. |
-| EEAPI_SSHHOST | specifies host name or IP address of the the Spectrum Archive server. Must be specified if EEAPI_USESSH is set to true. Default is localhost. |
-| EEAPI_KEYFILE |specifies the name of the SSH key file to be used for the communication with the Spectrum Archive server. Must be specified if EEAPI_USESSH is set to true. Default is localhost. |
-| EEAPI_RECALLFILE | specifies the directory and file name prefix on the Spectrum Archive server where the recall file lists are stored. The recall list includes fully qualified path and file name to be recalled. The subsequent command: eeadm recall <file list> will recall the files within this list. The default path and file name prefix is /tmp/recall-list. |
-| EEAPI_MIGRATEFILE | specifies the directory and file name prefix on the Spectrum Archive server where the migrate file lists are stored. The migrate list includes fully qualified path and file name to be migrated. The subsequent command: eeadm migrate <file list> -p poolQlib will migrate the files within this list. The default path and file name prefix is /tmp/recall-list.  |
+| EEAPI_USESSH | specifies whether to use SSH to connect to the Spectrum Archive server remotely or not. Possible values are: true and falso. When running on a Spectrum Archive server this should be set to false. Default is true. |
+| EEAPI_SSHPORT | specifies the SSH port to be used for SSH and SCP communication with the remote Spectrum Archive server. Must be specified if EEAPI_USESSH is set to true. Default is 22.  |
+| EEAPI_SSHUSER | specifies the SSH / SCP user name used for SSH and SCP communication with the remote Spectrum Archive server. Default ist root. Must be specified if EEAPI_USESSH is set to true. Please notice that currently Spectrum Archive EE is not aware of non-root users. |
+| EEAPI_SSHHOST | specifies host name or IP address of the remote Spectrum Archive server. Must be specified if EEAPI_USESSH is set to true. Default is localhost. |
+| EEAPI_KEYFILE |specifies the name of the SSH key file (private key) to be used for the communication with the Spectrum Archive server. This file must be present on the server running the API. Must be specified if EEAPI_USESSH is set to true. |
+| EEAPI_RECALLFILE | specifies the directory and file name prefix on the Spectrum Archive server where the recall file lists are stored. The recall list includes fully qualified path and file name to be recalled. The subsequent command: eeadm recall <file list> will recall the files within this list. The default path and file name prefix is /tmp/recall-list |
+| EEAPI_MIGRATEFILE | specifies the directory and file name prefix on the Spectrum Archive server where the migrate file lists are stored. The migrate list includes fully qualified path and file name to be migrated. The subsequent command: eeadm migrate <file list> -p pool@lib will migrate the files within this list. The default path and file name prefix is /tmp/recall-list  |
 
 
 ### Deployment on Spectrum Archive server 
-To deploy the Tape Archive API on a Spectrum Archive node, node version 10 or higher must be installed on the Spectrum Archive node. Copy server.js and package.json to the server and run `npm install`. Prior to starting the API export the following environmental variables: `export EEAPI_USESSH=false`. To start the API run `node ./server.js`
+To deploy the Tape Archive API on a Spectrum Archive node, node version 10 or higher must be installed on the Spectrum Archive node. Copy server.js and package.json to the server and run `npm install`. 
 
-Check the about page: `curl -X GET http://<EE server IP>:<EEAPI_PORT>/about`
+Prior to starting the API export the following environmental variables: 
+
+`export EEAPI_USESSH=false`
+
+To start the API run 
+
+`node ./server.js`
+
+Check the about page: 
+
+`curl -X GET http://<EE server IP>:<EEAPI_PORT>/about`
 
 
 ### Deployment on remote server
-To deploy the Tape API on a remote server running node copy server.js and package.json to the remote server into a directory, or clone the git into this directory. Run `npm install` to install the required node modules. Now set the environmental variables according configuration, see section Deployment. 
+To deploy the Tape API on a remote server running node copy server.js and package.json to the remote server into a directory, or clone the git into this directory. Run `npm install` to install the required node modules. Now set the environmental variables according configuration, see section Deployment. You have to enable ssh (`EEAPI_USESSH=true`) and specify the environmental variables describing the ssh and scp communication parameters: `EEAPI_SSHPORT, EEAPI_SSHUSER, EEAPI_SSHHOST, EEAPI_KEYFILE, EEAPI_RECALLFILE, EEAPI_MIGRATEFILE`
+
 
 > You have to provide a ssh key allowing the remote server to perform passwordless ssh with the Spectrum Archive EE node. The public part of the ssh key file must be referenced by the environment variable `EEAPI_SSHKEY`.
 
 Once the environment is set start the API: 
+
 `node ./server.js`
 
 Start with testing the connection using this URL: 
+
 `curl -X GET http://<EE server IP>:<EEAPI_PORT>/test`
 
 
@@ -117,17 +133,18 @@ Adjust the Dockerfile with the ssh key file path (public key) at:
 COPY <your key file> . 
 ```
 Build the container using the Dockerfile: 
+
 `docker built -t eeapi .`
 
 Adjust the environment variable in the docker-compose file. See section Environment variables for more details. 
 
 Start the container. Starting the container with `-d` gives you the console which is useful for debugging.
+
 `docker-compose up [-d]`  
 
 Now you can test the connection: 
-`curl -X GET http://<EE server IP>:<EEAPI_PORT>/test`
 
-And run other API commands.
+`curl -X GET http://<EE server IP>:<EEAPI_PORT>/test`
 
 
 Have fun and thanks to Khanh V Ngo for providing the baseline API :+1: 
