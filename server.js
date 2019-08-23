@@ -24,7 +24,7 @@
 #
 # General
 # -------
-# Name:			eeapi - Tape Archive API for IBM Spectrum Archive EE
+# Name:			eeapi - Tape Archive REST API for IBM Spectrum Archive EE
 # Author: 	    Nils Haustein - haustein(at)de.ibm.com
 # Contributor:	Khanh V Ngo - khanhn(at)us.ibm.com
 # Contributor:	Achim Christ - achim(dot)christ(at)gmail(dot)com
@@ -39,12 +39,12 @@
 #
 # Description
 # ------------
-# The Tape archive API facilitates controlling migration and recalls of files 
+# The Tape archive REST API facilitates controlling migration and recalls of files 
 # managed by IBM Spectrum Archive Enterprise Edition. It also allows to obtain 
 # component status for IBM Spectrum Archive system. The Tape archive API is a 
 # REST API that provides http calls to manage files and obtain status information.
 # 
-# The Tape archive API is based on Node JavaScript (Node JS) and can be deployed 
+# The Tape archive REST API is based on Node JavaScript (Node JS) and can be deployed 
 # directly on a Spectrum Archive server or on a remote system that uses 
 # password-less SSH to communicate with the Spectrum Archive server. For defining 
 # the deployment and communication parameters environmental variables are available.
@@ -66,6 +66,7 @@
 # ---------------
 # 08/16/19 first implementation
 # 08/20/19 implement test function, streamline packages and package.json
+# 08/20/19 added strictHostKeyCheck=no as ssh option
 #
 ################################################################################
 #
@@ -648,7 +649,7 @@ app.put("/migrate", function(req, res) {
 app.listen(httpPort)
 
 /* print welcome */
-console.log("Tape Action API version "+ver+" started on port "+httpPort);
+console.log("Tape Archive REST API version "+ver+" started on HTTP port "+httpPort);
 // console.log("DEBUG: useSSH="+useSSH+" sshPort="+sshPort+" sshkeyfile="+sshKey+" sshUser="+sshUser+" sshHost="+sshHost+" recallDir="+recallFileSpec+" migrateDir="+migrateFileSpec+"");
 
 /********************************************************************
