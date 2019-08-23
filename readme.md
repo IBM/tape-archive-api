@@ -1,14 +1,14 @@
-# Tape archive API
+# Tape archive REST API
 Using tapes in tiered storage file system that are space managed bears some risk. Especially if users can access the file system and cause transparent recalls. Transparent recalls tend to be slow and sometimes they impact file system operations. Therefore it is recommended to disallow transparent recalls for users and instead use customized retrieval processes that perform tape optimized recalls instead. 
 
-The Tape archive API provides functions to migrate and recall files in a tape optimized manner, in combination with IBM Spectrum Archive Enterprise Edition. With tape optimized operations multiple files are sorted by their tape ID and position on tape and are copied all together. This significantly lowers number of tape mounts, optimized tape motion and reduces the time required to complete the operation. 
+The Tape archive REST API provides functions to migrate and recall files in a tape optimized manner, in combination with IBM Spectrum Archive Enterprise Edition. With tape optimized operations multiple files are sorted by their tape ID and position on tape and are copied all together. This significantly lowers number of tape mounts, optimized tape motion and reduces the time required to complete the operation. 
 
 
 ## Introduction
-The Tape archive API facilitates controlling migration and recalls of files managed by IBM Spectrum Archive Enterprise Edition. It also allows to obtain component status for IBM Spectrum Archive system. The Tape archive API is a REST API that provides http calls to manage files and obtain status information.
+The Tape archive REST API facilitates controlling migration and recalls of files managed by IBM Spectrum Archive Enterprise Edition. It also allows to obtain component status for IBM Spectrum Archive system. The Tape archive REST API is a REST API that provides http calls to manage files and obtain status information.
 
 
-### Tape Archive API calls
+### Tape archive REST API calls
 The following calls are provided to check the setup and the API:
 
 - GET test: checks if ssh and scp works and if the Spectrum Archive EE admin tool `eeadm` exists.
@@ -20,7 +20,7 @@ The following calls are provided to check the setup and the API:
 	`curl -X GET http://host:port/about`
 
 
-The following calls are provided by the Tape archive API to obtain IBm Spectrum Archive component information, In the examples below simple curl commands are presented:
+The following calls are provided by the Tape archive REST API to obtain IBM Spectrum Archive component information, In the examples below simple curl commands are presented:
 
 - GET node status: obtains node status information from Spectrum Archive EE:
 
@@ -54,8 +54,8 @@ Furthermore the API allows to inquire information about Spectrum Archive tasks. 
 	`curl -X GET http://host:port/taskshow/<task-id>`
 
 
-For controlling file operations the following API call are availeble
-- GET file state: ontain information about the file status that can be: resident, migrated or pre-migrated. The file name or a single file name pattern is specified by the token "path-and-filename". This must be a fully qualified path and file name of the file within the space managed file system. 
+For controlling file operations the following API call are available
+- GET file state: obtain information about the file status that can be: resident, migrated or pre-migrated. The file name or a single file name pattern is specified by the token "path-and-filename". This must be a fully qualified path and file name of the file within the space managed file system. 
 
 	`curl -X GET http://host:port/filestate/<path-and-filename>`
 
@@ -72,7 +72,7 @@ For controlling file operations the following API call are availeble
 
 
 ## Deployment
-The Tape archive API is based on Node JavaScript (Node JS) and can be deployed directly on a Spectrum Archive server or on a remote system that uses password-less SSH to communicate with the Spectrum Archive server. The API has been tested with node version 10. 
+The Tape archive REST API is based on Node JavaScript (Node JS) and can be deployed directly on a Spectrum Archive server or on a remote system that uses password-less SSH to communicate with the Spectrum Archive server. The API has been tested with node version 10. 
 
 
 ### Environmental variables
@@ -81,9 +81,9 @@ For defining the deployment and communication parameters the following environme
 | Environmental variable | Description |
 | -----------------------|-------------|
 | EEAPI_PORT | specifies the port for the communication with the API, default port is 80. |
-| EEAPI_USESSH | specifies whether to use SSH to connect to the Spectrum Archive server remotely or not. Possible values are: true and falso. When running on a Spectrum Archive server this should be set to false. Default is true. |
+| EEAPI_USESSH | specifies whether to use SSH to connect to the Spectrum Archive server remotely or not. Possible values are: true and false. When running on a Spectrum Archive server this should be set to false. Default is true. |
 | EEAPI_SSHPORT | specifies the SSH port to be used for SSH and SCP communication with the remote Spectrum Archive server. Must be specified if EEAPI_USESSH is set to true. Default is 22.  |
-| EEAPI_SSHUSER | specifies the SSH / SCP user name used for SSH and SCP communication with the remote Spectrum Archive server. Default ist root. Must be specified if EEAPI_USESSH is set to true. Please notice that currently Spectrum Archive EE is not aware of non-root users. |
+| EEAPI_SSHUSER | specifies the SSH / SCP user name used for SSH and SCP communication with the remote Spectrum Archive server. Default is root. Must be specified if EEAPI_USESSH is set to true. Please notice that currently Spectrum Archive EE is not aware of non-root users. |
 | EEAPI_SSHHOST | specifies host name or IP address of the remote Spectrum Archive server. Must be specified if EEAPI_USESSH is set to true. Default is localhost. |
 | EEAPI_KEYFILE |specifies the name of the SSH key file (private key) to be used for the communication with the Spectrum Archive server. This file must be present on the server running the API. Must be specified if EEAPI_USESSH is set to true. |
 | EEAPI_RECALLFILE | specifies the directory and file name prefix on the Spectrum Archive server where the recall file lists are stored. The recall list includes fully qualified path and file name to be recalled. The subsequent command: eeadm recall <file list> will recall the files within this list. The default path and file name prefix is /tmp/recall-list |
@@ -91,7 +91,7 @@ For defining the deployment and communication parameters the following environme
 
 
 ### Deployment on Spectrum Archive server 
-To deploy the Tape Archive API on a Spectrum Archive node, node version 10 or higher must be installed on the Spectrum Archive node. Copy server.js and package.json to the server and run `npm install`. 
+To deploy the Tape archive REST API on a Spectrum Archive node, node version 10 or higher must be installed on the Spectrum Archive node. Copy server.js and package.json to the server and run `npm install`. 
 
 Prior to starting the API export the following environmental variables: 
 
@@ -110,7 +110,7 @@ Check the about page:
 To deploy the Tape API on a remote server running node copy server.js and package.json to the remote server into a directory, or clone the git into this directory. Run `npm install` to install the required node modules. Now set the environmental variables according configuration, see section Deployment. You have to enable ssh (`EEAPI_USESSH=true`) and specify the environmental variables describing the ssh and scp communication parameters: `EEAPI_SSHPORT, EEAPI_SSHUSER, EEAPI_SSHHOST, EEAPI_KEYFILE, EEAPI_RECALLFILE, EEAPI_MIGRATEFILE`
 
 
-> You have to provide a ssh key allowing the remote server to perform passwordless ssh with the Spectrum Archive EE node. The public part of the ssh key file must be referenced by the environment variable `EEAPI_SSHKEY`.
+> You have to provide a ssh key allowing the remote server to perform password less ssh with the Spectrum Archive EE node. The public part of the ssh key file must be referenced by the environment variable `EEAPI_SSHKEY`.
 
 Once the environment is set start the API: 
 
@@ -125,7 +125,7 @@ The Tape API can also be deployed in a Docker container. This git includes a Doc
 
 Clone the git.
 
-> You have to provide a ssh key allowing the remote server to perform passwordless ssh with the Spectrum Archive EE node. The public part of the ssh key file must be referenced by the environment variable `EEAPI_SSHKEY` and within the dockerfile. 
+> You have to provide a ssh key allowing the remote server to perform password less ssh with the Spectrum Archive EE node. The public part of the ssh key file must be referenced by the environment variable `EEAPI_SSHKEY` and within the dockerfile. 
 
 Adjust the Dockerfile with the ssh key file path (public key) at:
 ```
@@ -151,12 +151,14 @@ Have fun and thanks to Khanh V Ngo for providing the baseline API :+1:
 
 
 ## Considerations and limitations
-The Tape Archive API is a prototype and has not been tested in production and in multi-user environments. The author does not assume any liability for damages or other trouble when deploying this API. Contact the author if you need help implementing it in your environment. 
+The Tape archive REST API is a prototype and has not been tested in production and in multi-user environments. The author does not assume any liability for damages or other trouble when deploying this API. Contact the author if you need help implementing it in your environment. 
 
 Consider the following limitations:
+- The API allows to inquire the file state (migrated, pre-migrated or resident) for a single file or a path and file name pattern. It does not currently allow specifying a list of files to be inquired. 
 - The API uses synchronous recall and migrate calls. These can take longer times causing HTTP timeouts. 
-- Migrate and recall request are immediatelly executed, this can lead to many simulataneous tape operations in the backend. 
+- Migrate and recall request are immediately executed, this can lead to many simultaneous tape operations in the backend. 
 - The API does not use any user authentication for incoming requests. 
 - The API does not check if users requesting a migrate or recall are authorized to access the files to be processed. 
+- The API currently only support IBM Spectrum Archive EE. In can be adapted to for other space management components. 
 
-These limitations can be addressed, contact the author if you need help with this. 
+These limitations can be addressed, contact the author if you need help with this.
