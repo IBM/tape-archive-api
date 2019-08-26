@@ -1,7 +1,9 @@
 # Tape archive REST API
 Using tapes in tiered storage file system that are space managed bears some risk. Especially if users can access the file system and cause transparent recalls. Transparent recalls tend to be slow and sometimes they impact file system operations. Therefore it is recommended to disallow transparent recalls for users and instead use customized retrieval processes that perform tape optimized recalls instead. 
 
-The Tape archive REST API provides functions to migrate and recall files in a tape optimized manner, in combination with IBM Spectrum Archive Enterprise Edition. With tape optimized operations multiple files are sorted by their tape ID and position on tape and are copied all together. This significantly lowers number of tape mounts, optimized tape motion and reduces the time required to complete the operation. 
+The Tape archive REST API provides functions to migrate and recall files in a tape optimized manner, in combination with IBM Spectrum Archive Enterprise Edition. With tape optimized operations multiple files are sorted by their tape ID and position on tape and are copied all together. This significantly lowers number of tape mounts, optimized tape motion and reduces the time required to complete the recall operation. 
+
+The efficient use of the Tape Archive REST API requires to prevent transparent recalls. This allow the user to see all archived files in the tiered storage file system, but prevents access to migrated files. The user rather uses the Tape archive REST API to order the tape optimized recall. Preventing transparent recalls can be achieved by setting special file permissions of migrated files. 
 
 
 ## Introduction
@@ -151,14 +153,16 @@ Have fun and thanks to Khanh V Ngo for providing the baseline API :+1:
 
 
 ## Considerations and limitations
-The Tape archive REST API is a prototype and has not been tested in production and in multi-user environments. The author does not assume any liability for damages or other trouble when deploying this API. Contact the author if you need help implementing it in your environment. 
+The Tape archive REST API is a prototype and has not been tested in production and in multi-user environments. The author does not assume any liability for damages or other trouble when deploying this API. Contact the author if you need help properly implementing teh API in your environment. 
 
 Consider the following limitations:
 - The API allows to inquire the file state (migrated, pre-migrated or resident) for a single file or a path and file name pattern. It does not currently allow specifying a list of files to be inquired. 
 - The API uses synchronous recall and migrate calls. These can take longer times causing HTTP timeouts. 
 - Migrate and recall request are immediately executed, this can lead to many simultaneous tape operations in the backend. 
+- All path and file name patterns must be fully qualified relative to the space managed file system. If the end user mounts the space managed file system via NFS then the NFS path name may not fully match the space managed file system name. This requires some translation of path names in the backend.  
 - The API does not use any user authentication for incoming requests. 
 - The API does not check if users requesting a migrate or recall are authorized to access the files to be processed. 
+- The API itself does not prevent transparent recalls when migrated files are accessed in the space managed file systems. Additional processes that adjust file permissions must be implemented to prevent transparent recalls. 
 - The API currently only support IBM Spectrum Archive EE. In can be adapted to for other space management components. 
 
 These limitations can be addressed, contact the author if you need help with this.
