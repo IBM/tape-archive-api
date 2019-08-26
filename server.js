@@ -138,7 +138,7 @@ app.get("/about", function(req, res) {
  
   console.log("DEBUG: Route started: "+req.route.path+""); 
 
-  res.write("Welcome to the Tape Archve REST API!\n");
+  res.write("Welcome to the Tape Archive REST API!\n");
   app._router.stack.forEach(function(r){
     if (r.route && r.route.path){
       if (format === "json") {
