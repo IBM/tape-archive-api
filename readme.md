@@ -1,13 +1,15 @@
 # Tape archive REST API
-Using tapes in tiered storage file system that are space managed bears some risk. Especially if users can access the file system and cause transparent recalls. Transparent recalls tend to be slow and sometimes they impact file system operations. Therefore it is recommended to disallow transparent recalls for users and instead use customized retrieval processes that perform tape optimized recalls instead. 
-
-The Tape archive REST API provides functions to migrate and recall files in a tape optimized manner, in combination with IBM Spectrum Archive Enterprise Edition. With tape optimized operations multiple files are sorted by their tape ID and position on tape and are copied all together. This significantly lowers number of tape mounts, optimized tape motion and reduces the time required to complete the recall operation. 
-
-The efficient use of the Tape Archive REST API requires to prevent transparent recalls. This allow the user to see all archived files in the tiered storage file system, but prevents access to migrated files. The user rather uses the Tape archive REST API to order the tape optimized recall. Preventing transparent recalls can be achieved by setting special file permissions of migrated files. 
+The Tape archive REST API facilitates controlling migration and recalls of files managed by IBM Spectrum Archive Enterprise Edition version 1.3.0.3 and above. It also allows to obtain component status for IBM Spectrum Archive system. The Tape archive REST API is a REST API that provides http calls to manage files and obtain status information.
 
 
 ## Introduction
-The Tape archive REST API facilitates controlling migration and recalls of files managed by IBM Spectrum Archive Enterprise Edition. It also allows to obtain component status for IBM Spectrum Archive system. The Tape archive REST API is a REST API that provides http calls to manage files and obtain status information.
+Using tapes in tiered storage file system that are space managed bears some risk. Especially if users can access the file system and cause transparent recalls. Transparent recalls tend to be slow and sometimes they impact file system operations. Therefore it is recommended to disallow transparent recalls for users and instead use tape optimized recalls. This requires to customize the retrieval process for the end user. 
+
+The Tape archive REST API provides functions to migrate and recall files in a tape optimized manner, in combination with IBM Spectrum Archive Enterprise Edition version 1.3.0.3 and above. With tape optimized operations multiple files are sorted by their tape ID and position on tape and are copied all together. This significantly lowers number of tape mounts, optimized tape motion and reduces the time required to complete the recall operation. 
+
+The efficient use of the Tape Archive REST API requires to prevent transparent recalls. This allow the user to see all archived files in the tiered storage file system, but prevents access to migrated files. The user rather uses the Tape archive REST API to order the tape optimized recall. Preventing transparent recalls can be achieved by setting special file permissions of migrated files. 
+
+For more information about the challenges and best practices with tapes in tiered storage file systems, please read this [blog article](http://not-yet-published/)
 
 
 ### Tape archive REST API calls
@@ -93,7 +95,7 @@ For defining the deployment and communication parameters the following environme
 
 
 ### Deployment on Spectrum Archive server 
-To deploy the Tape archive REST API on a Spectrum Archive node, node version 10 or higher must be installed on the Spectrum Archive node. Copy server.js and package.json to the server and run `npm install`. 
+To deploy the Tape archive REST API on a Spectrum Archive node, node version 10 or higher must be installed on the Spectrum Archive node. Copy files [server.js](server.js) and [package.json](package.json) to a directory in the server and run `npm install` in this directory. 
 
 Prior to starting the API export the following environmental variables: 
 
@@ -103,13 +105,13 @@ To start the API run
 
 `node ./server.js`
 
-Check the about page: 
+Check the console and assure that the API has started. Issue the about call using curl: 
 
 `curl -X GET http://<EE server IP>:<EEAPI_PORT>/about`
 
 
 ### Deployment on remote server
-To deploy the Tape API on a remote server running node copy server.js and package.json to the remote server into a directory, or clone the git into this directory. Run `npm install` to install the required node modules. Now set the environmental variables according configuration, see section Deployment. You have to enable ssh (`EEAPI_USESSH=true`) and specify the environmental variables describing the ssh and scp communication parameters: `EEAPI_SSHPORT, EEAPI_SSHUSER, EEAPI_SSHHOST, EEAPI_KEYFILE, EEAPI_RECALLFILE, EEAPI_MIGRATEFILE`
+To deploy the Tape API on a remote server running node copy the files [server.js](server.js) and [package.json](package.json) to the remote server into a directory, or clone the git into this directory. Run `npm install` to install the required node modules. Now set the environmental variables according configuration, see section Deployment. You have to enable ssh (`EEAPI_USESSH=true`) and specify the environmental variables describing the ssh and scp communication parameters: `EEAPI_SSHPORT, EEAPI_SSHUSER, EEAPI_SSHHOST, EEAPI_KEYFILE, EEAPI_RECALLFILE, EEAPI_MIGRATEFILE`
 
 
 > You have to provide a ssh key allowing the remote server to perform password less ssh with the Spectrum Archive EE node. The public part of the ssh key file must be referenced by the environment variable `EEAPI_SSHKEY`.
@@ -129,7 +131,7 @@ Clone the git.
 
 > You have to provide a ssh key allowing the remote server to perform password less ssh with the Spectrum Archive EE node. The public part of the ssh key file must be referenced by the environment variable `EEAPI_SSHKEY` and within the dockerfile. 
 
-Adjust the Dockerfile with the ssh key file path (public key) at:
+Adjust the [Dockerfile](Dockerfile) with the ssh key file path (public key) at:
 ```
 # Copy private ssh key
 COPY <your key file> . 
@@ -138,7 +140,7 @@ Build the container using the Dockerfile:
 
 `docker built -t eeapi .`
 
-Adjust the environment variable in the docker-compose file. See section Environment variables for more details. 
+Adjust the environment variable in the [docker-compose](docker-compose.yml) file. See section Environment variables for more details. 
 
 Start the container. Starting the container with `-d` gives you the console which is useful for debugging.
 
@@ -156,6 +158,7 @@ Have fun and thanks to Khanh V Ngo for providing the baseline API :+1:
 The Tape archive REST API is a prototype and has not been tested in production and in multi-user environments. The author does not assume any liability for damages or other trouble when deploying this API. Contact the author if you need help properly implementing teh API in your environment. 
 
 Consider the following limitations:
+- The Tape archive REST API has been tested with IBM Spectrum Archive EE version 1.3.0.3. It definitely needs version 1.3.0 because it uses the eeadm command. When using a version 1.3 below 1.3.0.3 the migrate function does not work because it does not accept simple file lists. 
 - The API allows to inquire the file state (migrated, pre-migrated or resident) for a single file or a path and file name pattern. It does not currently allow specifying a list of files to be inquired. 
 - The API uses synchronous recall and migrate calls. These can take longer times causing HTTP timeouts. 
 - Migrate and recall request are immediately executed, this can lead to many simultaneous tape operations in the backend. 
