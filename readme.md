@@ -151,7 +151,7 @@ Now you can test the connection:
 `curl -X GET http://<EE server IP>:<EEAPI_PORT>/test`
 
 
-Have fun and thanks to Khanh V Ngo for providing the baseline API :+1: 
+Have fun and thanks to [Khanh V Ngo](https://github.ibm.com/khanhn) for providing the baseline API :+1: 
 
 
 ## Considerations and limitations
