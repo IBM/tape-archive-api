@@ -3,7 +3,7 @@ The Tape archive REST API facilitates controlling migration and recalls of files
 
 
 ## Disclaimer and license
-This project is under MIT license.
+This project is under [MIT license](LICENSE).
 
 The Tape archive REST API is an open source project and NOT an IBM product. As such it is not supported by any official IBM product support. 
 
