@@ -9,17 +9,19 @@ The Tape archive REST API is an open source project and NOT an IBM product. As s
 
 The code provided in this git repository is a prototype and has not been tested in production and in multi-user environments. The author does not assume any liability for damages or other trouble when deploying this API. Changes in the products it integrates with - for example IBM Spectrum Archive Enterprise Edition - may cause the API to stop working. 
 
-For intergration and support of the Tape archive REST API in your environment contact the [author](https://github.com/nhaustein).
+For integration and support of the Tape archive REST API in your environment contact the [author](https://github.com/nhaustein).
 
 Thanks to [Khanh V Ngo](https://github.com/khanhn1638) for providing the baseline API. Thanks to [Achim Christ](https://github.com/acch) for the useful lessons about nodejs. 
 
 
 ## Introduction
-Using tapes in tiered storage file system that are space managed bears some risk. Especially if users can access the file system and cause transparent recalls. Transparent recalls tend to be slow and sometimes they impact file system operations. Therefore it is recommended to disallow transparent recalls for users and instead use tape optimized recalls. This requires to customize the retrieval process for the end user. 
+Using tapes in tiered storage file system that are space managed bears some risk, especially if end users can access the file system directly and cause transparent recalls. Transparent recalls tend to be slow and many of them can impact file system operations (recall storms). Therefore it is recommended to prevent transparent recalls for users and instead use tape optimized recalls. 
 
-The Tape archive REST API provides functions to migrate and recall files in a tape optimized manner, in combination with IBM Spectrum Archive Enterprise Edition version 1.3.0.3 and above. With tape optimized operations multiple files are sorted by their tape ID and position on tape and are copied all together. This significantly lowers number of tape mounts, optimized tape motion and reduces the time required to complete the recall operation. 
+The Tape Archive REST API provides functions to migrate and recall files in a tape optimized manner. In particulare the recall function can be used to recall files in a tape optimized manner. With tape optimized recall multiple files are sorted by their tape ID and position on tape and are copied all together. This significantly lowers number of tape mounts, optimized tape motion and reduces the time required to complete the recall operation. 
 
-The efficient use of the Tape Archive REST API requires to prevent transparent recalls. This allow the user to see all archived files in the tiered storage file system, but prevents access to migrated files. The user rather uses the Tape archive REST API to order the tape optimized recall. Preventing transparent recalls can be achieved by setting special file permissions of migrated files. 
+The efficient use of the Tape Archive REST API requires to disable transparent recalls. By disabling tansparent recalls it is possible to provide users access to the tiered storage file system without risking recall storms caused by many transparent recalls. Users can see all files and immediatelly access all non-migrated files. If a migrated file is accessed a well defined error message will be presented. With this the user knows that the file is migrated and can order to recall. The Tape Archive REST API provides a way for users order the recall of migrated files. The actual file recall may be deferred and executed as bulk recall, whereby files from multiple users are being recalled. 
+
+[IBM Spectrum Archive Enterprise Edition 1.3.0.6 and above](https://www.ibm.com/support/knowledgecenter/en/ST9MBR_1.3.0/ltfs_ee_whats_new_this_release.html) allows to disable transparent recalls using the new command: `eeadm cluster set`. With transparent recalls disabled, access to a migrated file results in an error (permission denied). Disabling transparent recalls can be used to prevent recall storms caused when many migrated files are accessed simultaneously. Bulk recalls continue to work, even if transparent recalls are disabled. Bulk recalls - initiated with the command: `eeadm recall filelist -p poolname` - are tape optimized, faster and less resource consuming.
 
 For more information about the challenges and best practices with tapes in tiered storage file systems, please read this [blog article](https://www.ibm.com/developerworks/community/blogs/storageneers/).
 
