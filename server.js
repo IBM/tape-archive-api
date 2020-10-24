@@ -1,7 +1,7 @@
 /******************************************************************************
 # The MIT License (MIT)                                                        #
 #                                                                              #
-# Copyright (c) 2019 Nils Haustein                             				   #
+# Copyright (c) 2020 Nils Haustein                             				   #
 #                                                                              #
 # Permission is hereby granted, free of charge, to any person obtaining a copy #
 # of this software and associated documentation files (the "Software"), to deal#
@@ -28,7 +28,7 @@
 # Author: 	    Nils Haustein - haustein(at)de.ibm.com
 # Contributor:	Khanh V Ngo - khanhn(at)us.ibm.com
 # Contributor:	Achim Christ - achim(dot)christ(at)gmail(dot)com
-# Version:	0.91
+# Version:	0.95
 # Dependencies:	
 #   - nodejs version 10
 #   - IBM Spectrum Archive EE version 1.3.0 and above and IBM Spectrum Scale
@@ -67,12 +67,15 @@
 # 08/16/19 first implementation
 # 08/20/19 implement test function, streamline packages and package.json
 # 08/20/19 added strictHostKeyCheck=no as ssh option
-#
+# 10/15/20 use node ssh instead of ssh command executed with spawn /usr/bin/ssh
+# 10/18/20 change endpoint /filestate to provide file names in request body
+# 10/22/20 added new endpoint /runpolicy
+# 10/23/20 streamline code and messaging
 ################################################################################
 #
 # to be done: 
 # -----------
-# cleanup debug message and add console.debug
+# catch wrong endpoint
 # add json output to all encpoints (test, migrate, recall)
 # put routes in separate files
 #
@@ -89,6 +92,8 @@ const bodyParser = require("body-parser");
 const sprintf = require("sprintf-js").sprintf;
 const morgan = require("morgan");
 const process = require("process");
+const node_ssh = require('node-ssh')
+
 
 /* assign environment variables or defaults */
 // http port to be used by the API
@@ -107,22 +112,42 @@ const sshKey = process.env.EEAPI_KEYFILE || "/root/.ssh/id_rsa";
 const recallFileSpec = process.env.EEAPI_RECALLFILE || "/tmp/recall-list";
 // directory and file name prefix for migrate filelists on EE node
 const migrateFileSpec = process.env.EEAPI_MIGRATEFILE || "/tmp/migrate-list";
+// use sudo or not
+const useSudo = process.env.EEAPI_USESUDO || "false"; 
+// NEW directory and file name prefix for policy file name on EE node
+const policyFileSpec = process.env.EEAPI_POLICYFILE || "/tmp/policy-file";
 
 /* define global constants */
 // define version
-const ver = "0.91"
+const ver = "0.92"
 // common ssh and scp option
 const sshOpts ="-p "+sshPort+" -o BatchMode=yes -o StrictHostKeyChecking=no -i "+sshKey+" "+sshUser+"@"+sshHost+""
 const scpOpts ="-P "+sshPort+" -o BatchMode=yes -o StrictHostKeyChecking=no -i "+sshKey+""
 // define bytes
 var bytes = 1024*1024*1024;
+// instantiate ssh object
+const ssh = new node_ssh()
 
-/* instantiate express object */
-var app = express();
-var adminRoutes = express.Router();
-app.use(morgan("common"));
-app.use(bodyParser.urlencoded({extended: false}));
-app.use(bodyParser.json());
+/*******************************************************************************
+ MAIN Code
+*******************************************************************************/
+
+try { 
+  // instantiate express object
+  var app = express();
+  var adminRoutes = express.Router();
+  app.use(morgan("common"));
+  app.use(bodyParser.urlencoded({extended: false}));
+  app.use(bodyParser.json());
+
+  // start web server
+  app.listen(httpPort)
+  // print welcome */
+  console.log("Tape Archive REST API version "+ver+" started on HTTP port "+httpPort);
+} catch(err) {
+  console.log("ERROR: something when wrong in the webserver"+err);
+}; 
+
 
 
 /*****************************************************************************************
@@ -140,7 +165,7 @@ app.get("/about", function(req, res) {
 
   res.write("Welcome to the Tape Archive REST API!\n");
   app._router.stack.forEach(function(r){
-    if (r.route && r.route.path){
+    if (r.route && r.route.path && ! r.route.path.includes("*")){
       if (format === "json") {
         let routePath = r.route.path.split('/');
         let name = routePath[1];
@@ -175,108 +200,115 @@ app.get("/about", function(req, res) {
 TODO:
 - produce json output
 *****************************************************************************************/
-app.get("/test", function(req, res) {
+app.get("/test", async function(req, res) {
   let format = req.query.format || "text";
   let output = "";
-  let worker;
+  let errNo = 0; 
+  let result; 
+  let dummyFile = "/tmp/localfile."+shortid.generate()+""; 
+  let destFile =  "/tmp/remotefile."+shortid.generate()+"";
 
+  const eeadmCmd = "/opt/ibm/ltfsee/bin/eeadm";
+  
   console.log("DEBUG: Route started: "+req.route.path+""); 
 
-  output = ("INFO Environment:\n  EEAPI_PORT="+httpPort+"\n  EEAPI_USESSH="+useSSH+"\n  EEAPI_SSHPORT="+sshPort+"\n  EEAPI_SSHKEY="+sshKey+"\n  EEAPI_SSHUSER="+sshUser+"\n  EEAPI_SSHHOST="+sshHost+"\n  EEAPI_RECALLFILE="+recallFileSpec+"\n  EEAPI_MIGRATEFILE="+migrateFileSpec+"\n");
+  output = ("INFO Environment:\n  EEAPI_PORT="+httpPort+"\n  EEAPI_USESSH="+useSSH+"\n  EEAPI_SSHPORT="+sshPort+"\n  EEAPI_SSHKEY="+sshKey+"\n  EEAPI_SSHUSER="+sshUser+"\n  EEAPI_SSHHOST="+sshHost+"\n  EEAPI_RECALLFILE="+recallFileSpec+"\n  EEAPI_MIGRATEFILE="+migrateFileSpec+"\n  EEAPI_USESUDO="+useSudo+"\n");
+  console.log(output);
 
   if (useSSH == "true") {
-    // run ssh test
-    worker = runCommand("exit 0", "text", undefined);
-
-    worker.stdout.on("data", function(data) {
-      console.log("stdout: "+data);
-    });
-    worker.stderr.on("data", function(data) {
-      output = ""+output+"stderr: "+data+""; 
-    });
-    worker.on("exit", function(code) {
-      if (code != 0 ) {
-        output = ""+output+"\nERROR: ssh connection failed with return code: "+code+"\n";
-        console.log(output); 
-        res.status(500).send(output);
-      }
-      else {
-        // if ssh works then check if scp wors
-        output = ""+output+"INFO: ssh works\n";
-        
-        // create dummy file
-        let dummyFile="/tmp/dummyFile"; 
-        try {
-          fs.writeFileSync(dummyFile, "scp test");
-        } catch (err) {
-	      console.log("ERROR: writing to file "+dummyFile+", message: "+err.message+", return http 500\n");
-          res.status(500).send("ERROR: creating test file, message: "+err.message+"");
-          return;
-        }
-
-        // send file to remote host
-        let destFile = ""+recallFileSpec+"."+shortid.generate()+"";
-        worker=runCopy(dummyFile, destFile); 
-
-        worker.stdout.on("data", function(data) {
-          console.log("stdout: "+data);
-        });
-        worker.stderr.on("data", function(data) {
-          output = ""+output+"stderr: "+data+""; 
-        });
-        worker.on("exit", function(code) {
-          if (code != 0 ) {
-            output = ""+output+"\nERROR: scp connection failed with return code: "+code+"\n";
-            console.log(output); 
-            res.status(500).send(output);
-          }
-          else {
-            output = ""+output+"INFO: scp works\n";
-            // if ssh works then check if scp wors
-        
-            worker=runCommand("/usr/bin/ls /opt/ibm/ltfsee/bin/eeadm", "text", undefined); 
-
-            worker.stdout.on("data", function(data) {
-              console.log("stdout: "+data);
-            });
-            worker.stderr.on("data", function(data) {
-              output = ""+output+"stderr: "+data+""; 
-            });
-            worker.on("exit", function(code) {
-              if (code != 0 ) {
-                output = ""+output+"\nERROR: checking presence of eeadm failed with return code: "+code+"\n";
-                console.log(output); 
-                res.status(500).send(output);
-              }
-              else {
-                output = ""+output+"INFO: eeadm is present\n";
-                console.log(output); 
-                res.send(output);
-              }
-            });
-          }
-        });
-      }
-    });
-  }
-  else {
-    let eeadmFile = "/opt/ibm/ltfsee/bin/eeadm";
+	// test ssh
     try {
-        fs.accessSync(eeadmFile); 
+	  console.log("INFO: Checking ssh connection to "+sshUser+"@"+sshHost+" Port "+sshPort+" keyfile "+sshKey+"");
+	  result = await runCommand("exit 0", "text");
+      if ( result.code === 0 ) {
+        output = ""+output+"INFO: ssh works\n";
+        console.log("INFO: ssh works, Message: " +result.msg);
+      } else {
+	    output = ""+output+"ERROR: ssh failed with return code "+result.code+" message: "+result.msg+"\n"; 
+        console.log("ERROR: ssh failed with return code "+result.code+" message: "+result.msg+"");
+	    errNo += 1;
+      };
+	} catch(err) {
+      console.log("ERROR: Checking ssh connection to "+sshUser+"@"+sshHost+" failed. Error message: " +err);
+      res.status(500).send("ERROR: Checking ssh connection to "+sshUser+"@"+sshHost+" failed. Error message: "+err+" \nStatus: "+output+"");
+	  return;
+    };
+
+	// test scp, create a dummy file and runCopy
+    try {
+      fs.writeFileSync(dummyFile, "scp test\n");
+      console.log("INFO: calling runCopy "+dummyFile+" to "+sshUser+"@"+sshHost+":"+destFile+" Port "+sshPort+" keyfile "+sshKey+"");
+	  result = await runCopy(dummyFile, destFile)
+
+      fs.unlink(dummyFile, function(err) {
+        if (err) {
+          console.log("WARNING: unlink "+dummyFile+" failed with err.message \n");  
+        } 
+	  });
+
+      // delete destFile
+      delResult = await runCommand("/usr/bin/rm -f "+destFile, format); 
+	  if ( delResult.code > 0 ) {
+	    console.log("WARNING: unable to delete destinatin file ("+destFile+"). Return code "+delResult.code+".\nMessage: "+delResult.msg+"");
+      };
+
+	  if ( result.code === 0 ) {
+        output = ""+output+"INFO: scp works\n";
+        console.log("INFO: scp works. Message: " +result.msg);
+      } else {
+        output = ""+output+"ERROR: scp failed with return code "+result.code+" message: "+result.msg+"\n"; 
+        console.log("ERROR: scp failed with return code "+result.code+" message: "+result.msg+"");
+		errNo += 1;
+	  };
+	} catch(err) {
+      console.log("ERROR: Failed to create and copy file to remote host. Error message: " +err);
+      res.status(500).send("ERROR: Failed to create and copy file to remote host. Error message: "+err+" \nStatus: "+output+"");
+	  return;
+    };
+	  
+	// check if eeadm exists
+    try {	
+      console.log("INFO: checking if "+eeadmCmd+" exists on "+sshUser+"@"+sshHost+" Port "+sshPort+" keyfile "+sshKey+"");
+      result = await runCommand("/usr/bin/ls /opt/ibm/ltfsee/bin/eeadm", "text");
+	  if ( result.code === 0 ) {
+		output = ""+output+"INFO: "+eeadmCmd+" exists\n";
+        console.log("INFO: "+eeadmCmd+" exists. Message: " +result.msg);
+      } else {
+		output = ""+output+"ERROR: checking for "+eeadmCmd+" failed, return code "+result.code+" message: "+result.msg+""; 
+        console.log("ERROR: checking for "+eeadmCmd+" failed, return code "+result.code+" message: "+result.msg+"");
+		errNo += 1;
+      };
+	} catch(err) {
+      console.log("ERROR: check for "+eeadmCmd+" failed. Error message: " +err);
+      res.status(500).send("ERROR: check for "+eeadmCmd+" failed. Error message: "+err+" \nStatus: "+output+"");
+	  return;
+	};
+
+    // send status and output
+    if ( errNo == 0 ) {
+      res.status(200).send(output);
+      return;
+    } else {
+      res.status(500).send(output);
+	  return;
+    }; 	
+  } else {
+	console.log("INFO: checking if "+eeadmCmd+" exists on this server");
+    try {
+      fs.accessSync(eeadmCmd); 
+      output = ""+output+"INFO: eeadm exists.\n";
+      console.log("INFO: eeadm exists.\n"); 
+      res.status(200).send(output);
+	  return;
     } catch(err) {
-        output = ""+output+"ERROR: eeadm does not exists, message: "+err.message+".\n"
+        output = "ERROR: eeadm does not exists, message: "+err.message+".\n"
         console.log(output); 
         res.status(500).send(output);
         return; 
-    }
-    output = ""+output+"INFO: eeadm exists.\n";
-    console.log(output); 
-    res.send(output);
-    
-  }
+    };
+  };
 
-  console.log("DEBUG: Route finished: "+req.route.path+""); 
-
+  console.log("INFO: Route finished: "+req.route.path+""); 
 });
 
 /*****************************************************************************************
@@ -287,12 +319,29 @@ app.get("/test", function(req, res) {
   Example: curl -X GET http://localhost/status
 
 *****************************************************************************************/
-app.get("/status", function(req, res) {
+app.get("/status", async function(req, res) {
   let format = req.query.format || "text";
+  let result;
+  const cmd = "/opt/ibm/ltfsee/bin/eeadm node list";
 
   console.log("DEBUG: Route started: "+req.route.path+""); 
-
-  runCommand("/opt/ibm/ltfsee/bin/eeadm node list", format, res);
+  
+  try { 
+    result = await runCommand(cmd, format);
+	if ( result.code === 0 ) {
+	  console.log("INFO: command "+cmd+" sucessful.");
+	  res.status(200).send(result.msg+"\n");
+	  return;
+    } else {
+	  console.log("ERROR: command "+cmd+"  failed with return code "+result.code+" ("+result.msg+")");
+      res.status(500).send("ERROR: command "+cmd+"  failed with return code "+result.code+" ("+result.msg+")\n");
+	  return;
+    };
+  } catch(err) {
+    console.log("ERROR: function runCommand("+cmd+") failed , error message: " +err);
+    res.status(500).send("ERROR: function runCommand("+cmd+") failed , error message: "+err+" \n");
+	return;
+  };
 
   console.log("DEBUG: Route finished: "+req.route.path+""); 
 });
@@ -300,239 +349,363 @@ app.get("/status", function(req, res) {
 
 /*****************************************************************************************
   Endpoint: /info/tape|drive|node|pool|library
+  Modifier: format = json | text
   Runs command: eeadm <comp> list
   Provide eeadm info command output
   
   Example: curl -X GET http://localhost/info/<cmd>
 *****************************************************************************************/
-app.get("/info/:cmd(tape|drive|node|pool|library)", function(req, res) {
+app.get("/info/:cmd(tape|drive|node|pool|library)", async function(req, res) {
   let format = req.query.format || "text";
-  let cmd = req.params.cmd;
+  let comp = req.params.cmd;
+  let result; 
+  const cmd = "/opt/ibm/ltfsee/bin/eeadm "+comp+" list";
 
-  console.log("DEBUG: Route started: "+req.route.path+", command="+cmd+""); 
-
-  runCommand("/opt/ibm/ltfsee/bin/eeadm "+cmd+" list", format, res);
+  console.log("INFO: Route started: "+req.route.path+""); 
+  
+  // run command
+  try {
+    result = await runCommand(cmd, format);
+	if ( result.code === 0 ) {
+	  console.log("INFO: command "+cmd+" sucessful.");
+	  res.status(200).send(result.msg+"\n");
+	  return;
+    } else {
+	  console.log("ERROR: command "+cmd+"  failed with return code "+result.code+" ("+result.msg+")");
+      res.status(500).send("ERROR: command "+cmd+"  failed with return code "+result.code+" ("+result.msg+")\n");
+	  return;
+    };
+  } catch(err) {
+    console.log("ERROR: function runCommand("+cmd+") failed , error message: " +err);
+    res.status(500).send("ERROR: function runCommand("+cmd+") failed , error message: "+err+" \n");
+	return;
+  };
 
   console.log("DEBUG: Route finished: "+req.route.path+""); 
-
 });
 
 
 /*****************************************************************************************
   Endpoint: /tasks/:cmd(active|complete)
+  Modifier: format = json | text
+            filter = <recall|migrate|..>
   Runs command: eeadm task list [-c] 
   Provide eeadm task list [-c] output
   
   Example: curl -X GET http://localhost/tasks/:cmd(active|all)
 
 *****************************************************************************************/
-app.get("/tasks/:cmd(active|all)", function(req, res) {
+app.get("/tasks/:cmd(active|all)", async function(req, res) {
   let format = req.query.format || "text";
   let filter = req.query.filter;
-  let cmd = req.params.cmd;
+  let scope = req.params.cmd;
   let opt = "";
+  let result; 
+  let cmd = "/opt/ibm/ltfsee/bin/eeadm task list";
 
-  console.log("DEBUG: Route started: "+req.route.path+", scope="+cmd+""); 
+  console.log("INFO: Route started: "+req.route.path+", scope="+cmd+""); 
 
-  if (cmd === "all") {
+  if (scope === "all") {
     opt = "-c";
   }
-  
+
   if (filter) {
-     runCommand("/opt/ibm/ltfsee/bin/eeadm task list "+opt+" | grep "+filter, format, res);
+     cmd = ""+cmd+" "+opt+" | grep "+filter+"";
   }
   else {
-     runCommand("/opt/ibm/ltfsee/bin/eeadm task list "+opt, format, res);
+     cmd = ""+cmd+" "+opt+"";
   }
 
-  console.log("DEBUG: Route finished: "+req.route.path+""); 
+  // run command
+  try { 
+    result = await runCommand(cmd, format);
+    if ( result.code === 0 ) {
+      console.log("INFO: command "+cmd+" sucessful.");
+	  res.status(200).send(result.msg+"\n");
+	  return;
+    } else {
+	  console.log("ERROR: command "+cmd+"  failed with return code "+result.code+" ("+result.msg+")");
+      res.status(500).send("ERROR: command "+cmd+"  failed with return code "+result.code+" ("+result.msg+")\n");
+	  return;
+    };
+  } catch(err) {
+    console.log("ERROR: function runCommand("+cmd+") failed , error message: " +err);
+    res.status(500).send("ERROR: function runCommand("+cmd+") failed , error message: "+err+" \n");
+	return;
+  };
+
+  console.log("INFO: Route finished: "+req.route.path+""); 
 });
+
 
 /*****************************************************************************************
   Endpoint: /taskshow/:taskid
+  Modifier: format = json | text
   Runs command: eeadm task show task-ID 
   Provide eeadm task show task-id
   
   Example: curl -X GET http://localhost/taskshow/:task-id
 *****************************************************************************************/
-app.get("/taskshow/:taskid", function(req, res) {
+app.get("/taskshow/:taskid", async function(req, res) {
   let format = req.query.format || "text";
   let taskid = req.params.taskid;
-
-  console.log("DEBUG: Route started: "+req.route.path+" task-id="+taskid+""); 
+  let execCmd = "";
+  let result;
+  const cmd = "/opt/ibm/ltfsee/bin/eeadm task show ";
+  
+  console.log("INFO: Route started: "+req.route.path+" task-id="+taskid+""); 
 
   if (!isNaN(taskid)) {
-    runCommand("/opt/ibm/ltfsee/bin/eeadm task show "+taskid, format, res);
+    try {
+      execCmd = cmd+taskid;
+	  result = await runCommand(execCmd, format);
+      if ( result.code === 0 ) {
+        console.log("INFO: command "+execCmd+" sucessful.");
+	    res.status(200).send(result.msg+"\n");
+		return;
+      } else {
+	    console.log("ERROR: command "+execCmd+"  failed with return code "+result.code+" ("+result.msg+")");
+        res.status(500).send("ERROR: command "+execCmd+"  failed with return code "+result.code+" ("+result.msg+")\n");
+	    return;
+      }
+    } catch(err) {
+      console.log("ERROR: function runCommand("+execCmd+") failed , error message: " +err);
+      res.status(500).send("ERROR: function runCommand("+execCmd+") failed , error message: "+err+" \n");
+	  return;
+    };
   }
   else {
 /*  return error */
-    console.log("Error: Invalid task-ID, must be a integer number");
+    console.log("Error: Invalid task-ID ("+taskid+"), must be a integer number");
     res.status(412).send("Error: Invalid task-ID, must be a integer number\n");
+	return;
   }
 
-  console.log("DEBUG: Route finished: "+req.route.path+""); 
+  console.log("INFO: Route finished: "+req.route.path+""); 
 });
 
-
 /*****************************************************************************************
-  Endpoint: /filestate/<path-and-file-name>
-  Runs command: eeadm file state on given file
-  Provide eeadm file state output
+  Endpoint: /filestate
+  Modifier: format = json | text
+  Body: list of fully qualified path and file names
+  Processing:
+    Runs command: eeadm file state on given file
+    Provide eeadm file state output
   
-  Example: curl -X GET http://localhost/filestate/<path-and-file-name>
+  Example: curl -X GET http://localhost/filestate -d "<list of file names>"
 
 TODO:
-- tolerate blank in filename
+- accept wildcards
+- produce json
 *****************************************************************************************/
-app.get("/filestate/*", function(req, res) {
+// the trick here is to run function(req,res) as async which allows us to wait on runCommand
+app.get("/filestate", async function(req, res) {
   let format = req.query.format || "text";
+  let cmd = "/opt/ibm/ltfsee/bin/eeadm file state ";
   let output = "";
-  let file = "/"+req.params[0];
-  let worker;
+  let file = ""; 
+  let execCmd = "";
+  let num = 0;
+  let fileList; 
+  let result; 
 
-  console.log("DEBUG: Route started: "+req.route.path+", file="+file+""); 
+  console.log("INFO: Route started: "+req.route.path+""); 
 
-  // run the command with fixed format text because eeadm file state does not support json
-  worker = runCommand("/opt/ibm/ltfsee/bin/eeadm file state "+file, "text", undefined);
+  // assign request body to object array and try to trim and split the file list now, if it is empty, we will catch the error, 
+  // expected output [ 'line1', 'line2', '', 'line3' ]
+  try {
+    fileList = Object.keys(req.body)[0]; 
+	fileList=fileList.trim().split("\n");
+  } catch (err) {
+    console.log("ERROR: request body cannot be processed, message: "+err);
+    res.status(412).send("ERROR: request body cannot be processed. You have to provide one file name per line in the request body.\n");
+    return;
+  };
 
-  worker.stdout.on("data", function(data) {
-    output += data;
-  });
-  worker.stderr.on("data", function(data) {
-    console.log("stderr: "+data);
-  });
-  worker.on("exit", function(code) {
-    if (code === 0 ) {
-      if (format === "json") {
-        res.type("json");
-        res.send(convertFileInfo(code, output)); 
-      }
-      else {
-        res.type("text");
-        res.send(output);
-      }
-    }
-    else {
-      console.log("Error: command eeadm file state failed with return code: "+code+""); 
-      if (format === "json") {
-	    res.status(500).send("{\"Response\": {\"Returncode\": "+code+", \"Message\": \"command eeadm file state failed\"}}\n");
-	  }
-	  else {
-	    res.status(500).send("Error: command eeadm file list  failed with return code "+code+"\n");
-	  }
+  for (let file of Object.values(fileList)) {
+	try {
+      file = file.trimLeft();
+	} catch (err) {
+	  console.log ("WARNING: file name ("+file+") is not valid. Message: "+err);
+	  continue;
+    };
+	
+	if ( file === "" || file.includes(";") ) {
+	  console.log("WARNING: file name ("+file+") is empty or not valid, continuing with next file.");
+	  output += "Name: "+file+"\nState: invalid_file_name\n\n";
+	  continue;
+	} else {
+	  // await runCommand to get it serialized.
+	  try {
+        execCmd = cmd+"'"+file+"'"; 
+        console.log("INFO: runing command: "+execCmd+""); 
+        result = await runCommand(execCmd, "");
+	    if ( result.code === 0 ) {
+          output += result.msg+"\n\n";
+		  num += 1
+        } else {
+	      output = output+"ERROR: command "+execCmd+"  failed with return code "+result.code+" ("+result.msg+")\n";
+          console.log("ERROR: command "+execCmd+"  failed with return code "+result.code+" ("+result.msg+")");
+        };
+      } catch(err) {
+		console.log("ERROR: async function runCommand("+execCmd+") failed , error message: " +err);
+        res.status(500).send("ERROR: async function runCommand("+execCmd+") failed , error message: "+err+" \n");
+	  };
 	};
-  }); 
+  };
 
-  console.log("DEBUG: Route finished: "+req.route.path+""); 
+  if ( output === "" ) {
+	output = "ERROR: No file names provided in request body.\n";
+	console.log(output); 
+	res.status(500).send(output);
+	return;
+  } else {
+    if ( num == 0 ) {
+	  output = output+"ERROR: Unable to determine the status of any given files.\n"; 
+	  console.log(output); 
+	  res.status(500).send(output);
+	  return;
+	} else {
+      res.status(200).send(output);
+    };
+  };
+  
+  console.log("INFO: Route finished: "+req.route.path+""); 
+
 });
 
 
 /*****************************************************************************************
   Endpoint: /recall
-  Obtains file list from request.body
-  Copies filelist to EE host
-  Runs command: eeadm recall filelist 
-  Returns result of the operation
+  Modifier: format = json | text
+  Body: list of fully qualified file names to be recalled. 
+  Processing:
+    Obtains file list from request.body
+    Copies filelist to EE host
+    Runs command: eeadm recall filelist 
+    Returns result of the operation
   
   Example: curl -X PUT http://localhost/recall -d "filelist"
-*****************************************************************************************/
-app.put("/recall", function(req, res) {
-  let format = req.query.format || "text";
-  let file_list = Object.keys(req.body)[0];
-  let worker;
-  let tmp_file = "/tmp/ee-restapi-reclist."+shortid.generate();
-  let destFile = ""+recallFileSpec+"."+shortid.generate()+"";
-
-  console.log("DEBUG: Route started: "+req.route.path+""); 
-
-  // console.log("DEBUG: request body sting: "+file_list);
-
-  if (file_list === "" || file_list == undefined || file_list == "\n") {
-    console.log("Error: recall file list is empty, returning http 412.");
-    res.status(412).send("Error: recall file list is empty.\n");
-    return;
-  }
   
-  // write file_list in file tmp_file 
-  file_list = file_list.trim();
+TODO:
+- produce json
+*****************************************************************************************/
+app.put("/recall", async function(req, res) {
+  let format = req.query.format || "text";
+  let fileList;
+  let execCmd = "";
+  let result; 
+  let delResult; 
+  
+  const cmd = "/opt/ibm/ltfsee/bin/eeadm recall ";
+  const tmpFile = "/tmp/ee-restapi-reclist."+shortid.generate();
+  // cannot be const because it may get tmpFile assigned
+  let destFile = ""+recallFileSpec+"."+shortid.generate()+"";
+  
+  console.log("INFO: Route started: "+req.route.path+""); 
+  // console.log("DEBUG: request body sting: "+fileList);
+
+  // write fileList in file tmpFile 
   try {
-    fs.writeFileSync(tmp_file, file_list);
+    fileList = Object.keys(req.body)[0];
+    fileList = fileList.trim();
+    fs.writeFileSync(tmpFile, fileList);
   } catch (err) {
-	console.log("Error: writing to file "+tmp_file+", message: "+err.message+", return http 500\n");
-    res.status(500).send("Error: creating file list, message: "+err.message+"");
+	console.log("ERROR: creating recall file-list from request body. Message: "+err);
+    res.status(500).send("ERROR: creating recall-file list from request body. Message: "+err);
     return;
-  }
+  };
 
-  // send tmp_file to eenode as file destFile, return 500 (internal server error) if it fails
-  worker = runCopy(tmp_file, destFile);
-  // capture stdout and check exit code
-  worker.stdout.on("data", function(data) {
-    console.log("DEBUG: runcopy output: "+data);
-  });
-  worker.on("exit", function(code) {
-    // if runCopy was good then run the command
-    if (code === 0 ) {
-      // unlink the tmp_file
-      fs.unlink(tmp_file, function(err) {
+
+  if ( useSSH == "true" ) {
+    // send tmpFile to eenode as file destFile, return 500 (internal server error) if it fails
+	try {
+      console.log("INFO: copying file "+tmpFile+" to file "+destFile+""); 
+      result = await runCopy(tmpFile, destFile)
+ 
+      fs.unlink(tmpFile, function(err) {
         if (err) {
-          console.log("WARNING: unlink "+tmp_file+" failed with err.message \n");  
+          console.log("WARNING: unlink "+tmpFile+" failed with err.message \n");  
         } 
-      });
+	  });
+	
+	  if ( result.code === 0 ) {
+        console.log("INFO: Copy done.");
+      } else {
+        console.log("ERROR: runCopy failed with return code "+result.code+" message: "+result.msg+"");
+        res.status(500).send("ERROR: runCopy failed with return code "+result.code+" message: "+result.msg+"");
+	    return;
+      };
+    } catch(err) {
+      console.log("ERROR: runCopy failed, error message: " +err);
+      res.status(500).send("ERROR: runcopy1 failed, error message: "+err+"");
+	  return; 
+    };
+  } else {
+	destFile = tmpFile; 
+  };
+      
+  // run recall 
+  try { 
+    execCmd = cmd+destFile;
+    console.log("INFO: running command "+execCmd+""); 
+    result = await runCommand(execCmd, format);
+	
+    // delete destFile
+    delResult = await runCommand("/usr/bin/rm -f "+destFile, format); 
+	if ( delResult.code > 0 ) {
+	  console.log("WARNING: unable to delete recall list file ("+destFile+"). Return code "+delResult.code+".\nMessage: "+delResult.msg+"");
+    };
+    
+	if ( result.code === 0 ) {
+	  console.log("INFO: command "+execCmd+" successful.");
+	  res.status(200).send(result.msg+"\n");
+	  return; 
+    } else {
+	  console.log("ERROR: command "+execCmd+"  failed with return code "+result.code+" ("+result.msg+")");
+      res.status(500).send("ERROR: command "+execCmd+"  failed with return code "+result.code+" ("+result.msg+")\n");
+	  return;
+    };
+  } catch(err) {
+    console.log("ERROR: function runCommand("+execCmd+") failed , error message: " +err);
+    res.status(500).send("ERROR: function runCommand("+execCmd+") failed , error message: "+err+" \n");
+	return; 
+  };
 
-      // run the eeadm command
-      worker = runCommand("/opt/ibm/ltfsee/bin/eeadm recall "+destFile, "text", undefined);
-      // capture stdout and check exit code
-      worker.stdout.on("data", function(data) {
-        console.log("DEBUG: runCommand output: "+data);
-      });
-      worker.on("exit", function(code) {
-        if (code === 0 ) {
-          if (format === "json") {
-           res.type("json");
-           res.send("{\"Response\": {\"Returncode\": \"0\", \"Message\": \"Recall finished.\"}}\n");
-          }
-          else {
-            res.type("text");
-            res.send("Recall finished!\n");
-          }
-        }
-        else {
-          console.log("Error: recall failed with return code "+code+", returning http 500");
-          if (format === "json") response.status(500).send("{\"Response\": {\"Returncode\": "+code+", \"Message\": \"recall failed.\"}}\n");
-          else res.status(500).send("Error: recall failed with return code "+code+"\n");
-        }
-      });
-    }
-    else {
-      console.log("Error: create file list failed with return code "+code+", returning http 500. SSH key may not work.");
-      if (format === "json") response.status(500).send("{\"Response\": {\"Returncode\": "+code+", \"Message\": \"create file list failed.\"}}\n");
-      else res.status(500).send("Error: create file list failed with return code "+code+"\n");
-    }
-  }); 
-  worker.stderr.on("data", function(data) {
-    console.log("stderr: "+data);
-  });
-
-  console.log("DEBUG: Route finished: "+req.route.path+""); 
+  console.log("INFO: Route finished: "+req.route.path+""); 
 });
 
 /*****************************************************************************************
   Endpoint: /migrate
-  Obtains file list from request.body and pool name from modifier ?pool1=name?po
-  Copies filelist to EE host
-  Runs command: eeadm migrate filelist -p pool
-  Returns result of the operation
+  Modifier: format = json | text
+            pool = poolname (required)
+			pool1-pool3 = poolname (obtional)
+  Body: list of fully qualified file names to be recalled. 
+  Processing:
+    Obtains file list from request.body and pool name from modifier ?pool1=name?po
+    Copies filelist to EE host
+    Runs command: eeadm migrate filelist -p pool
+    Returns result of the operation
   
   Example: curl -X PUT http://localhost/migrate?pool1=pool1@lib1&pool2=pool2@lib1 -d "filelist"
+
+TODO:
+- produce json
 *****************************************************************************************/
-app.put("/migrate", function(req, res) {
+app.put("/migrate", async function(req, res) {
   // get format from URL modifier ?format=, default is text
   let format = req.query.format || "text";
   // extract the file names from req.body key field 0
-  let file_list = Object.keys(req.body)[0];
-  let worker;
-  let tmp_file = "/tmp/ee-restapi-miglist."+shortid.generate();
+  let fileList;
+  let execCmd = "";
+  let result;
+  let delResult; 
+  
+  const tmpFile = "/tmp/ee-restapi-miglist."+shortid.generate();
+  const cmd = "/opt/ibm/ltfsee/bin/eeadm migrate ";
+  // cannot be const because it may get tmpFile assigned. 
   let destFile = ""+migrateFileSpec+"."+shortid.generate()+"";
+  
   // get pool name from URL modiers
   let pool = [];
   pool[0] = req.query.pool || undefined;
@@ -554,196 +727,455 @@ app.put("/migrate", function(req, res) {
     }
   }
 
-  console.log("DEBUG: Route started: "+req.route.path+", pools="+pools+""); 
+  console.log("INFO: Route started: "+req.route.path+", pools="+pools+""); 
 
   // bail out if we do not have a pool
   if (pools === "") {
-    console.log("Error: no migration destination pool specified.");
-    res.status(412).send("Error: no migration destination pool specified, use modifier ?pool=pool \n");
+    console.log("ERROR: no migration destination pool specified.");
+    res.status(412).send("ERROR: no migration destination pool specified, use modifier ?pool=pool \n");
     // return to prevent continuing this function
     return; 
   }
 
   // bail out if pool count is greate than 3
   if (poolCount > 3) {
-    console.log("Error: Number of pools ("+poolCount+") exceeds the maximum (3).");
-    res.status(412).send("Error: Number of pools ("+poolCount+") exceeds the maximum (3).\n");
+    console.log("ERROR: Number of pools ("+poolCount+") exceeds the maximum (3).");
+    res.status(412).send("ERROR: Number of pools ("+poolCount+") exceeds the maximum (3).\n");
     // return to prevent continuing this function
     return; 
   }
 
-  // bail out if the file_list is empty or undefined (-d not given)
-  if (file_list === "" || file_list == undefined || file_list == "\n") {
-    console.log("Error: migrate file list is empty.");
-    res.status(412).send("Error: migrate file list is empty.\n");
-    return;
-  }
-
-  // write file_list in file tmp_file 
-  file_list = file_list.trim();
+  // write fileList in file tmpFile 
   try {
-    fs.writeFileSync(tmp_file, file_list);
+    fileList = Object.keys(req.body)[0];
+    fileList = fileList.trim();
+    fs.writeFileSync(tmpFile, fileList);
   } catch (err) {
-	console.log("Error: writing to file "+tmp_file+", message: "+err.message+", return http 500\n");
-    res.status(500).send("Error: creating file list, message: "+err.message+"");
+	console.log("ERROR: creating migrate file-list from request body. Message: "+err.message+"");
+    res.status(500).send("ERROR: creating migrate file-list from request body. Message: "+err.message+"");
     return;
-  }
+  };
+  
+  if ( useSSH == "true" ) {
+    // send tmpFile to eenode as file destFile, return 500 (internal server error) if it fails
+	try { 
+      console.log("INFO: copying file "+tmpFile+" to file "+destFile+""); 
+      result = await runCopy(tmpFile, destFile)
 
-  //send tmp_file to eenode as file destFile, return 500 (internal server error) if it fails
-  worker = runCopy(tmp_file, destFile);
-  // capture stdout and exit codes
-  worker.stdout.on("data", function(data) {
-    console.log("DEBUG: runcopy output: "+data);
-  });
-  worker.on("exit", function(code) {
-    // if runCopy was good, run the command
-    if (code === 0 ) {
-      // unlink the tmp_file
-      fs.unlink(tmp_file, function(err) {
+      fs.unlink(tmpFile, function(err) {
         if (err) {
-          console.log("WARNING: unlink "+tmp_file+" failed with err.message \n");  
+          console.log("WARNING: unlink "+tmpFile+" failed with err.message \n");  
         } 
       });
+	  	  
+	  if ( result.code === 0 ) {
+        console.log("INFO: Copy done.");
+      } else {
+        console.log("ERROR: runCopy failed with return code "+result.code+" message: "+result.msg+"");
+        res.status(500).send("ERROR: runCopy failed with return code "+result.code+" message: "+result.msg+"");
+	    return;
+      };
+	} catch(err) {
+      console.log("ERROR: runCopy failed, error message: " +err);
+      res.status(500).send("ERROR: runcopy1 failed, error message: "+err+"");
+	  return; 
+    };
+  } else {
+	destFile = tmpFile;   
+  }
+  
+  // run migrate 
+  try { 
+    execCmd = cmd+destFile+" -p "+pools+"";
+    console.log("DEBUG: running command "+execCmd+""); 
+    result = await runCommand(execCmd, format);
+	
+    // delete destFile
+    delResult = await runCommand("/usr/bin/rm -f "+destFile, format); 
+	if ( delResult.code > 0 ) {
+	  console.log("WARNING: unable to delete migrate list file ("+destFile+"). Return code "+delResult.code+".\nMessage: "+delResult.msg+"");
+    };
+    
+	if ( result.code === 0 ) {
+	  console.log("INFO: command "+execCmd+" sucessful.");
+	  res.status(200).send(result.msg+"\n");
+	  return; 
+    } else {
+	  console.log("ERROR: command "+execCmd+"  failed with return code "+result.code+" ("+result.msg+")");
+      res.status(500).send("ERROR: command "+execCmd+"  failed with return code "+result.code+" ("+result.msg+")\n");
+	  return;
+    };
+  } catch(err) {
+    console.log("ERROR: function runCommand("+execCmd+") failed , error message: " +err);
+    res.status(500).send("ERROR: function runCommand("+execCmd+") failed , error message: "+err+" \n");
+	return; 
+  };
 
-      // run eeadm command
-      worker = runCommand("/opt/ibm/ltfsee/bin/eeadm migrate "+destFile+" -p "+pools+"", "text", undefined);
-      // capture stdout and exit codes
-      worker.stdout.on("data", function(data) {
-        console.log("DEBUG: runCommand output: "+data);
-      });
-      worker.on("exit", function(code) {
-        if (code === 0 ) {
-          if (format === "json") {
-            res.type("json");
-            res.send("{Response: {Returncode: 0, Message: Migrate finished}}\n");
-          }
-          else {
-            res.type("text");
-            res.send("Migrate finished!\n");
-          }
-        }
-        else {
-          console.log("Error: migrate failed with return code "+code+", returning http 500.");
-          if (format === "json") response.status(500).send("{\"Response\": {\"Returncode\": "+code+", \"Message\": \"migrate failed.\"}}\n");
-          else res.status(500).send("Error: migrate failed with return code "+code+"\n");
-        }
-       });
-     }
-     else {
-       console.log("Error: create file list for migrate failed with return code "+code+",returning http 500");
-       if (format === "json") response.status(500).send("{\"Response\": {\"Returncode\": "+code+", \"Message\": \"create file list for migrate failed.\"}}\n");
-       else res.status(500).send("Error: create file list failed for migrate with return code: "+code+"\n");
-     }
-     }); 
-  worker.stderr.on("data", function(data) {
-    console.log("stderr: "+data);
-  });
-
-  console.log("DEBUG: Route finished: "+req.route.path+""); 
+  console.log("INFO: Route finished: "+req.route.path+""); 
 });
 
+/*****************************************************************************************
+  Endpoint: /runpolicy
+  Modifier: format = json | text
+  Body: Path, options and policy to run in the following format:
+    Options: options (must all be in one line)
+    Path: path for the policy run (must all be in one line)
+	Policy: policy rules (can cross over multiple lines)
+	Note, all lines which do not have any of the token above are interpreted as policy
+  Processing:
+    Runs command: mmapplypolicy path -P policyfile [opts]
+    Provide eeadm file state output
+  
+  Example: curl -X PUT http://localhost/runpolicy -d "<Path: scope-for-policy \nOptions: [opts] \nPolicy: \n"
 
-/*******************************************************************************
- MAIN Code
-*******************************************************************************/
-app.listen(httpPort)
+TODO:
+- produce json
+*****************************************************************************************/
+// the trick here is to run function(req,res) as async which allows us to wait on runCommand
+app.put("/runpolicy", async function(req, res) {
+  let format = req.query.format || "text";
+  let reqBody; 
+  let path = "";
+  let opts = "";
+  let policy = "";   
+  let execCmd = ""; 
+  let result; 
+  let delResult;  
+  const cmd = "/usr/lpp/mmfs/bin/mmapplypolicy ";
+  const tmpFile = "/tmp/ee-restapi-polfile."+shortid.generate();
+  // cannot be const because it may get tmpFile assigned. 
+  let destFile = ""+policyFileSpec+"."+shortid.generate()+"";
 
-/* print welcome */
-console.log("Tape Archive REST API version "+ver+" started on HTTP port "+httpPort);
-// console.log("DEBUG: useSSH="+useSSH+" sshPort="+sshPort+" sshkeyfile="+sshKey+" sshUser="+sshUser+" sshHost="+sshHost+" recallDir="+recallFileSpec+" migrateDir="+migrateFileSpec+"");
+  console.log("INFO: Route started: "+req.route.path+""); 
+
+  // assign request body to object array and try to trim and split the file list now, if it is empty, we will catch the error, 
+  // expected output [ 'line1', 'line2', '', 'line3' ]
+  try {
+    reqBody = Object.keys(req.body)[0]; 
+	reqBody=reqBody.trim().split("\n");
+//    console.log("DEBUG: reqBody:");
+//    console.log(reqBody);
+  } catch (err) {
+    console.log("ERROR: request body cannot be processed, message: "+err);
+    res.status(412).send("ERROR: request body cannot be processed. You have to provide one file name per line in the request body.\n");
+    return;
+  };
+
+  for (let line of Object.values(reqBody)) {
+	try {
+      line = line.trimLeft();
+	} catch (err) {
+	  console.log ("WARNING: Line ("+line+") is not valid. Message: "+err);
+	  continue;
+    };
+	
+	// catch empty lines and escapes
+	if ( line === "" || line.includes(";")) {
+	  console.log("WARNING: Line ("+line+") is empty or not valid, continuing with next line.");
+	  continue;
+	} 
+	if ( line.includes("Path:") ) {
+	  path = line.split(":")[1];
+	  path = path.trimLeft(); 
+      continue;
+	}; 
+    if ( line.includes("Options:") ) {
+	  opts += line.split(":")[1]; 
+	  opts = opts.trimLeft();
+	  continue;
+	};
+    if ( line.includes("Policy:") ) {
+	  policy = line.split(":")[1];
+	  policy = policy.trimLeft(); 
+      if ( policy === "" ) {
+        policy = "";
+	  } else {
+		policy += "\n";
+	  }
+	} else {
+	  policy += line+"\n"
+	};
+  };
+
+  if ( path === "" || opts == "invalid" ) {
+	console.log("ERROR Path ("+path+") or Options ("+opts+") not specified or not valid.\n"); 
+	res.status(500).send("ERROR Path or Options not specified or not valid.\n");
+	return;
+  } else {
+    if ( policy == "" ) {
+	  console.log("ERROR Policy not specified or invalid.\n");
+	  res.status(500).send("ERROR Policy not specified.\n");
+	  return;
+	} else {
+      // write policy in file tmpFile 
+	  console.log("DeBUG: policy:");
+	  console.log(policy); 
+      try {
+        await fs.writeFileSync(tmpFile, policy);
+      } catch (err) {
+	    console.log("ERROR: creating policy file. Message: "+err);
+        res.status(500).send("ERROR: creating policy file. Message: "+err);
+        return;
+      };
+	  
+	  if ( useSSH == "true" ) {
+        // send tmpFile to eenode as file destFile, return 500 (internal server error) if it fails
+		try {
+          console.log("INFO: copying file "+tmpFile+" to file "+destFile+""); 
+          result = await runCopy(tmpFile, destFile)
+
+          fs.unlink(tmpFile, function(err) {
+            if (err) {
+              console.log("WARNING: unlink "+tmpFile+" failed: "+err);  
+            } 
+          });
+
+
+          if ( result.code === 0 ) {
+            console.log("INFO: Copy done.");
+		  } else {
+            console.log("ERROR: runCopy failed with return code "+result.code+" message: "+result.msg+"");
+            res.status(500).send("ERROR: runCopy failed with return code "+result.code+" message: "+result.msg+"");
+	        return;
+          };
+		} catch (err) {
+          console.log("ERROR: runCopy failed, error message: " +err);
+          res.status(500).send("ERROR: runcopy failed, error message: "+err);
+          return; 
+        };
+	  } else {
+		destFile = tmpFile; 
+	  };
+
+	  // run policy
+	  try {
+        execCmd = ""+cmd+""+path+" -P "+destFile+" "+opts+"";
+	    console.log("INFO: running command "+execCmd+""); 
+	    result = await runCommand(execCmd, format);
+
+        // delete destFile
+		delResult = await runCommand("/usr/bin/rm -f "+destFile, format); 
+		if ( delResult.code > 0 ) {
+	      console.log("WARNING: unable to delete policy file ("+destFile+"). Return code "+delResult.code+".\nMessage: "+delResult.msg+"");
+        };
+		
+        if ( result.code === 0 ) {
+	      console.log("INFO: command "+execCmd+" sucessful.");
+          res.status(200).send(result.msg+"\n");
+		  return; 
+        } else {
+	      console.log("ERROR: command "+execCmd+"  failed with return code "+result.code+".\nMessage: "+result.msg+"");
+          res.status(500).send("ERROR: command "+execCmd+"  failed with return code "+result.code+".\nMessage: "+result.msg+"\n");
+		  return;
+        };
+      } catch(err) {
+        console.log("ERROR: function runCommand("+execCmd+") failed , error message: " +err);
+        res.status(500).send("ERROR: function runCommand("+execCmd+") failed , error message: "+err+" \n");
+		return;
+      };
+    };
+  };
+  
+  console.log("INFO: Route finished: "+req.route.path+""); 
+
+});
+
+/*****************************************************************************************
+  Default Endpoint: (catch wrong GET endpoints)
+  Processing:
+    send default error message  
+  Example: curl -X get http://localhost/something
+
+TODO:
+- produce json
+*****************************************************************************************/
+app.get('*', function(req, res, next) {
+	
+  const output = "ERROR: 404 - Endpoint not found. For available endpoints see: GET http://localhost/about\n";
+  console.log(output); 
+  res.status(404).send(output); 
+  
+});
+
+/*****************************************************************************************
+  Default Endpoint: (catch wrong PUT endpoints)
+  Processing:
+    send default error message  
+  Example: curl -X put http://localhost/something
+
+TODO:
+- produce json
+*****************************************************************************************/
+app.put('*', function(req, res, next) {
+	
+  const output = "ERROR: 404 - Endpoint not found. For available endpoints see: GET http://localhost/about\n";
+  console.log(output); 
+  res.status(404).send(output); 
+  
+});
+
 
 /********************************************************************
   HELPER FUNCTIONS
 ********************************************************************/
-
 /********************************************************************
    Function: runCommand
    Input: 
     1. command string to run
-    2. output format (determines whether to add --json
+	2. format identifier (json is being tolerated, otherwise text
    Return: 
-     output: command output as spawn object
+     returns a promise, consisting of promise.code and promise.msg
+	 Code can be:
+	 0: ssh command completed successfully
+	 x: ssh specific codes
 *********************************************************************/
-function runCommand(command, format, response) {
-  let cmdPrefix = "";
+function runCommand(command, format) { 
+  let cmdPrefix = ""; 
   let cmdPostfix = "";
   let proc;
-  let output = "";
-
+  let output="";
+  
+  // assign command prefix: if useSudo is set then sudo should be used
+  if (useSudo === "true") {
+    cmdPrefix = "/usr/bin/sudo ";
+  }
+  
+  // assign command post fix: if format is set to json then set json
   if (format === "json") {
-    cmdPostfix = " --json"
+    cmdPostfix = " --json ";
   }
+  
+  // compose command
+  cmd = cmdPrefix+command+cmdPostfix;
 
-  if (useSSH === "true") {
-    cmdPrefix = "/usr/bin/ssh "+sshOpts+" ";
-    console.log("DEBUG: running command: "+cmdPrefix+""+command+""+cmdPostfix+"");
-    proc = spawn("/bin/sh",["-c", cmdPrefix+command+cmdPostfix]);
-  }
-  else {
-    console.log("DEBUG: running command: "+command+cmdPostfix);
-    proc = spawn("/bin/sh",["-c", command+cmdPostfix]);
-  };
-
-  // this is common code for some enpoints, but not for all
-  if (response) {
+  // create promise
+  return new Promise((resolve, reject) => {
+	if ( useSSH == "true" ) {  
+      console.log("DEBUG: runCommand: "+cmd+" on "+sshUser+"@"+sshHost+" at Port "+sshPort+" with keyfile "+sshKey+"");
+      ssh.connect({
+        host: sshHost,
+        username: sshUser,
+        privateKey: sshKey,
+        port: sshPort, 
+      })
+	  .then(function(sshcon_result) {
+//    console.log("DEBUG: connected: "+sshUser+"@"+sshHost+" on port: "+sshPort+" with ID file: "+sshKey+"");
+        ssh.execCommand(cmd, { options: { pty: true }}).then(function(exec_result) {
+	      resolve({
+            'code' : exec_result.code,
+            'msg' : exec_result.stdout+exec_result.stderr 		
+	      });
+        })
+        .catch(function(err) {
+          console.log("DEBUG ERROR: runCommand ssh.execCommand failed for command "+cmd+", error message: " +err);
+          reject(err);
+	      return;
+        });
+      })
+      .catch(function(err) {
+        console.log("DEBUG ERROR: runCommand failed to connect to: "+sshUser+"@"+sshHost+"on port: "+sshPort+" with ID file: "+sshKey+", error message: "+err);
+        reject(err);
+         return;
+      });
+    } else {
+      console.log("DEBUG: runCommand: "+cmd+" on local");
+	  try {
+	    proc = spawn("/bin/sh",["-c", cmd]);
+	  } catch(err) {
+		console.log("DEBUG ERROR: runCommand failed for command "+cmd+", error message: "+err);
+        reject(err);
+        return; 		
+	  }
 	  proc.stdout.on("data", function(data) {
 		output += data;
 	  });
 	  proc.stderr.on("data", function(data) {
+		output += data; 
 		console.log("stderr: "+data);
 	  });
 	  proc.on("exit", function(code) {
-		if (format == "json") { 
-		  response.type("json");
-		}
-		else {
-		  response.type("text");
-		}
-
-		if (code === 0 ) {
-		  response.send(output);
-		}
-		else {
-          console.log("Error: command "+command+"  failed with return code "+code+"");
-          if (output != "") {
-            console.log("Error: "+output+"");
-          }
-		  if (format === "json") {
-			 response.status(500).send("{\"Response\": {\"Returncode\": "+code+", \"Message\": \"command "+command+" failed ("+output+")\"}}\n");
-		  }
-		  else {
-			response.status(500).send("Error: command "+command+" failed with return code "+code+" ("+output+")\n");
-		  }
-		};
-	  }); 
-  }
-  return(proc);
-}
+		resolve({
+          'code' : code,
+          'msg' : output 		
+	    });
+	  });
+	};
+// close promise  
+  });
+};
 
 
 /********************************************************************
    Function: runCopy
-   Input: source file, destination file
-   Processing: runs remote copy command and returns status
-   Return: result of the copy operation as spawn object
+   Input: local file name, remote file name
+   Processing: copies local file to destination host as remote file
+   Return: returns a promise comprised of: promise.code and promise.msg
+   Code can be:
+   0: ok
+   x: scp specific
 *********************************************************************/
-function runCopy(sourceFile, destFile) {
-  let copyCmd = "";
-  let proc = "";
+function runCopy(lf, rf) {
+  let proc;
+  let output = "";
+  
+    // create promise
+  return new Promise((resolve, reject) => {
+	if ( useSSH == "true" ) {  
+      console.log("DEBUG: runCopy: putFile on "+sshUser+"@"+sshHost+" at Port "+sshPort+" with keyfile "+sshKey+"");
+      ssh.connect({
+        host: sshHost,
+        username: sshUser,
+        privateKey: sshKey,
+        port: sshPort, 
+      })
+      .then(function(result) {
+//    console.log("DEBUG: connected to : "+sshUser+"@"+sshHost+" on port: "+sshPort+" with ID file: "+sshKey+"");
+        ssh.putFile(lf, rf, undefined, { options: { pty: true }}).then(function() {
+//      console.log("SUCCESS: runCopy ok!");
+	      resolve({
+            'code' : 0,
+            'msg' : "file "+lf+" copied to "+sshHost+":"+rf+"",
+	      });
+        })
+        .catch(function(err) {
+          console.log("DEBUG ERROR: in runCopy, scp failed, message: " +err.message);
+          reject(err);
+	      return;
+        });
+      })
+      .catch(function(err) {
+         console.log("DEBUG ERROR: in runCopy, failed to connect to: "+sshUser+"@"+sshHost+"on port: "+sshPort+" with ID file: "+sshKey+"");
+         reject(err);
+         return;
+      });
+	} else {
+	  const copyCmd = "/usr/bin/cp "+lf+" "+rf+"";
+      console.log("DEBUG: runCopy: "+copyCmd);
+	  try {
+        proc = spawn("/bin/sh",["-c", copyCmd]);
+	  } catch(err) {
+        console.log("DEBUG ERROR: runCopy failed for command "+copyCmd+", error message: "+err);
+        reject(err);
+        return; 		
+	  };
+	  proc.stdout.on("data", function(data) {
+	    output += data;
+	  });
+	  proc.stderr.on("data", function(data) {
+		output += data; 
+	    console.log("stderr: "+data);
+	  });
+	  proc.on("exit", function(code) {
+		resolve({
+          'code' : code,
+          'msg' : output 		
+	    });
+	  });
+	};
+  // close promise
+  });
+};
 
-  if (useSSH === "true") {
-    copyCmd = "/usr/bin/scp "+scpOpts+" "+sourceFile+" "+sshUser+"@"+sshHost+":"+destFile+"";
-    console.log("DEBUG: running command: "+copyCmd+"");
-    proc = spawn("/bin/sh",["-c", copyCmd]);
-  }
-  else {
-    copyCmd = "/usr/bin/cp "+sourceFile+" "+destFile+"";
-    console.log("DEBUG: running command: "+copyCmd);
-    proc = spawn("/bin/sh",["-c", copyCmd]);
-  };
-
-  return(proc);
-}
 
 /********************************************************************
    Function: convertFileInfo
