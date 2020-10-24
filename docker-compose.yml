@@ -1,4 +1,4 @@
-version: '3'
+version: '5'
 
 services:
   app:
@@ -12,11 +12,13 @@ services:
     restart: always
     environment:
       - EEAPI_PORT=80
-      - EEAPI_USESSH=true
+      - EEAPI_USESSH=false
       - EEAPI_SSHPORT=22
       - EEAPI_SSHUSER=root
-      - EEAPI_SSHHOST="<EE-node-IP>"
+      - EEAPI_SSHHOST=10.0.0.1
+      - EEAPI_USESUDO=false
       - EEAPI_RECALLFILE=/tmp/recall-list
       - EEAPI_MIGRATEFILE=/tmp/migrate-list
       - EEAPI_KEYFILE=/usr/src/app/eeapi_id_rsa
+      - EEAPI_POLICYFILE=/tmp/policy-file
 
