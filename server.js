@@ -212,7 +212,7 @@ app.get("/test", async function(req, res) {
   
   console.log("DEBUG: Route started: "+req.route.path+""); 
 
-  output = ("INFO Environment:\n  EEAPI_PORT="+httpPort+"\n  EEAPI_USESSH="+useSSH+"\n  EEAPI_SSHPORT="+sshPort+"\n  EEAPI_SSHKEY="+sshKey+"\n  EEAPI_SSHUSER="+sshUser+"\n  EEAPI_SSHHOST="+sshHost+"\n  EEAPI_RECALLFILE="+recallFileSpec+"\n  EEAPI_MIGRATEFILE="+migrateFileSpec+"\n  EEAPI_USESUDO="+useSudo+"\n");
+  output = ("INFO Environment:\n  EEAPI_PORT="+httpPort+"\n  EEAPI_USESSH="+useSSH+"\n  EEAPI_SSHPORT="+sshPort+"\n  EEAPI_SSHKEY="+sshKey+"\n  EEAPI_SSHUSER="+sshUser+"\n  EEAPI_SSHHOST="+sshHost+"\n  EEAPI_USESUDO="+useSudo+"\n  EEAPI_RECALLFILE="+recallFileSpec+"\n  EEAPI_MIGRATEFILE="+migrateFileSpec+"\n  EEAPI_POLICYFILE="+policyFileSpec+"\n");
   console.log(output);
 
   if (useSSH == "true") {
@@ -633,12 +633,12 @@ app.put("/recall", async function(req, res) {
         console.log("INFO: Copy done.");
       } else {
         console.log("ERROR: runCopy failed with return code "+result.code+" message: "+result.msg+"");
-        res.status(500).send("ERROR: runCopy failed with return code "+result.code+" message: "+result.msg+"");
+        res.status(500).send("ERROR: runCopy failed with return code "+result.code+" message: "+result.msg+"\n");
 	    return;
       };
     } catch(err) {
       console.log("ERROR: runCopy failed, error message: " +err);
-      res.status(500).send("ERROR: runcopy1 failed, error message: "+err+"");
+      res.status(500).send("ERROR: runcopy1 failed, error message: "+err+"\n");
 	  return; 
     };
   } else {
@@ -752,7 +752,7 @@ app.put("/migrate", async function(req, res) {
     fs.writeFileSync(tmpFile, fileList);
   } catch (err) {
 	console.log("ERROR: creating migrate file-list from request body. Message: "+err.message+"");
-    res.status(500).send("ERROR: creating migrate file-list from request body. Message: "+err.message+"");
+    res.status(500).send("ERROR: creating migrate file-list from request body. Message: "+err.message+"\n");
     return;
   };
   
@@ -772,12 +772,12 @@ app.put("/migrate", async function(req, res) {
         console.log("INFO: Copy done.");
       } else {
         console.log("ERROR: runCopy failed with return code "+result.code+" message: "+result.msg+"");
-        res.status(500).send("ERROR: runCopy failed with return code "+result.code+" message: "+result.msg+"");
+        res.status(500).send("ERROR: runCopy failed with return code "+result.code+" message: "+result.msg+"\n");
 	    return;
       };
 	} catch(err) {
       console.log("ERROR: runCopy failed, error message: " +err);
-      res.status(500).send("ERROR: runcopy1 failed, error message: "+err+"");
+      res.status(500).send("ERROR: runcopy1 failed, error message: "+err+"\n");
 	  return; 
     };
   } else {
@@ -914,7 +914,7 @@ app.put("/runpolicy", async function(req, res) {
         await fs.writeFileSync(tmpFile, policy);
       } catch (err) {
 	    console.log("ERROR: creating policy file. Message: "+err);
-        res.status(500).send("ERROR: creating policy file. Message: "+err);
+        res.status(500).send("ERROR: creating policy file. Message: "+err+"\n");
         return;
       };
 	  
@@ -940,7 +940,7 @@ app.put("/runpolicy", async function(req, res) {
           };
 		} catch (err) {
           console.log("ERROR: runCopy failed, error message: " +err);
-          res.status(500).send("ERROR: runcopy failed, error message: "+err);
+          res.status(500).send("ERROR: runcopy failed, error message: "+err+"\n");
           return; 
         };
 	  } else {
