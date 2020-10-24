@@ -1,6 +1,6 @@
 {
   "name": "eeapi",
-  "version": "1.0.0",
+  "version": "1.9.5",
   "description": "Tape Archive API for Spectrum Archive EE",
   "main": "server.js",
   "scripts": {
@@ -17,6 +17,7 @@
     "express": ">= 4.13.0",
     "morgan": ">= 1.6.1",
     "shortid": ">= 2.2.4",
-    "sprintf-js": ">= 1.0.3"
+    "sprintf-js": ">= 1.0.3",
+	"node-ssh": "^6.0.0"
   }
 }
